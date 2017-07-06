@@ -171,22 +171,15 @@ short get_wind_direction()
   // https://www.sparkfun.com/datasheets/Sensors/Weather/Weather%20Sensor%20Assembly..pdf
   // using 10K pull-up resistor
 
-   //if (adc < 70) return (113);
-  //if (adc < 85) return (68);
   if (adc < 100) return (90);
-  //if (adc < 127) return (158);
   if (adc < 200) return (135);
-  //if (adc < 244) return (203);
   if (adc < 300) return (180);
-  //if (adc < 470) return (23);
   if (adc < 500) return (45);
-  //if (adc < 600) return (248);
   if (adc < 660) return (225);
-  //if (adc < 720) return (338);
   if (adc < 800) return (0);
-  //if (adc < 850) return (293);
   if (adc < 946) return (315);
   if (adc < 979) return (270);
+  return -1;
 }
 
 /**
@@ -209,9 +202,6 @@ bool syncRTC() {
 
   if (tmp >= 5)
     return false;
-  
-  
-  //rtc.adjust(DateTime(y, mo, d, h, mi, s));
 
   rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
 
@@ -230,13 +220,11 @@ bool syncRTC() {
 template <typename T>
 void printToLcd(const T message, uint8_t col=0, uint8_t row=0,  bool clear=true)
 {
-
   if (clear)
     lcd.clear();
 
   lcd.setCursor(col,row);
-  lcd.print(message);
-  
+  lcd.print(message); 
 }
 
 float getInternalTemp()
@@ -334,7 +322,7 @@ void setup() {
 }
 
 /**
- * Read soil humidity (0- 100)
+ * Read soil humidity (0-100)
  * 
  * @return short soil humidity
  */
