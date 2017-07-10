@@ -170,36 +170,6 @@
 #
 ########################################################################
 #
-# ARDUINO WITH ISP
-#
-# You need to specify some details of your ISP programmer and might
-# also need to specify the fuse values:
-#
-#     ISP_PROG	   = stk500v2
-#     ISP_PORT     = /dev/ttyACM0
-#
-# You might also need to set the fuse bits, but typically they'll be
-# read from boards.txt, based on the BOARD_TAG variable:
-#
-#     ISP_LOCK_FUSE_PRE  = 0x3f
-#     ISP_LOCK_FUSE_POST = 0xcf
-#     ISP_HIGH_FUSE      = 0xdf
-#     ISP_LOW_FUSE       = 0xff
-#     ISP_EXT_FUSE       = 0x01
-#
-# You can specify to also upload the EEPROM file:
-#     ISP_EEPROM   = 1
-#
-# I think the fuses here are fine for uploading to the ATmega168
-# without bootloader.
-#
-# To actually do this upload use the ispload target:
-#
-#    make ispload
-#
-#
-########################################################################
-#
 # ALTERNATIVE CORES
 #
 # To use alternative cores for platforms such as ATtiny, you need to
@@ -332,47 +302,6 @@ else
     $(call show_config_variable,ARDMK_VENDOR,[USER])
 endif
 
-########################################################################
-# Arduino Sketchbook folder
-
-ifndef ARDUINO_SKETCHBOOK
-    ifndef ARDUINO_PREFERENCES_PATH
-        ifeq ($(shell expr $(ARDUINO_VERSION) '>' 150), 1)
-            AUTO_ARDUINO_PREFERENCES := $(firstword \
-                $(call dir_if_exists,$(HOME)/.arduino15/preferences.txt) \
-                $(call dir_if_exists,$(HOME)/Library/Arduino15/preferences.txt) )
-        else
-            AUTO_ARDUINO_PREFERENCES := $(firstword \
-                $(call dir_if_exists,$(HOME)/.arduino/preferences.txt) \
-                $(call dir_if_exists,$(HOME)/Library/Arduino/preferences.txt) )
-        endif
-
-        ifdef AUTO_ARDUINO_PREFERENCES
-           ARDUINO_PREFERENCES_PATH = $(AUTO_ARDUINO_PREFERENCES)
-           $(call show_config_variable,ARDUINO_PREFERENCES_PATH,[AUTODETECTED])
-        endif
-
-    else
-        $(call show_config_variable,ARDUINO_PREFERENCES_PATH,[USER])
-    endif
-
-    ifneq ($(ARDUINO_PREFERENCES_PATH),)
-        ARDUINO_SKETCHBOOK := $(shell grep --max-count=1 --regexp='sketchbook.path=' \
-                                          $(ARDUINO_PREFERENCES_PATH) | \
-                                     sed -e 's/sketchbook.path=//' )
-    endif
-
-    ifneq ($(ARDUINO_SKETCHBOOK),)
-        $(call show_config_variable,ARDUINO_SKETCHBOOK,[AUTODETECTED],(from arduino preferences file))
-    else
-        ARDUINO_SKETCHBOOK := $(firstword \
-            $(call dir_if_exists,$(HOME)/sketchbook) \
-            $(call dir_if_exists,$(HOME)/Documents/Arduino) )
-        $(call show_config_variable,ARDUINO_SKETCHBOOK,[DEFAULT])
-    endif
-else
-    $(call show_config_variable,ARDUINO_SKETCHBOOK,[USER])
-endif
 
 ########################################################################
 # Arduino and system paths
@@ -491,18 +420,11 @@ endif
 ifdef ALTERNATE_CORE
     $(call show_config_variable,ALTERNATE_CORE,[USER])
 
-    ifndef ALTERNATE_CORE_PATH
-        ALTERNATE_CORE_PATH = $(ARDUINO_SKETCHBOOK)/hardware/$(ALTERNATE_CORE)/$(ARCHITECTURE)
-    endif
 endif
 
 ifdef ALTERNATE_CORE_PATH
 
-    ifdef ALTERNATE_CORE
-        $(call show_config_variable,ALTERNATE_CORE_PATH,[COMPUTED], (from ARDUINO_SKETCHBOOK and ALTERNATE_CORE))
-    else
-        $(call show_config_variable,ALTERNATE_CORE_PATH,[USER])
-    endif
+    $(call show_config_variable,ALTERNATE_CORE_PATH,[USER])
 
     ifndef ARDUINO_VAR_PATH
         ARDUINO_VAR_PATH  = $(ALTERNATE_CORE_PATH)/variants
@@ -534,13 +456,6 @@ endif
 
 ########################################################################
 # Miscellaneous
-
-ifndef USER_LIB_PATH
-    USER_LIB_PATH = $(ARDUINO_SKETCHBOOK)/libraries
-    $(call show_config_variable,USER_LIB_PATH,[DEFAULT],(in user sketchbook))
-else
-    $(call show_config_variable,USER_LIB_PATH,[USER])
-endif
 
 ifndef PRE_BUILD_HOOK
     PRE_BUILD_HOOK = pre-build-hook.sh
@@ -651,47 +566,6 @@ ifeq ($(strip $(NO_CORE)),)
         ifndef AVRDUDE_ARD_BAUDRATE
             AVRDUDE_ARD_BAUDRATE := $(call PARSE_BOARD,$(BOARD_TAG),upload.speed)
         endif
-    endif
-
-    # fuses if you're using e.g. ISP
-    ifndef ISP_LOCK_FUSE_PRE
-        ISP_LOCK_FUSE_PRE = $(call PARSE_BOARD,$(BOARD_TAG),bootloader.unlock_bits)
-    endif
-
-    ifndef ISP_HIGH_FUSE
-        ISP_HIGH_FUSE := $(call PARSE_BOARD,$(BOARD_TAG),menu.(chip|cpu).$(BOARD_SUB).bootloader.high_fuses)
-        ifndef ISP_HIGH_FUSE
-            ISP_HIGH_FUSE := $(call PARSE_BOARD,$(BOARD_TAG),bootloader.high_fuses)
-        endif
-    endif
-
-    ifndef ISP_LOW_FUSE
-        ISP_LOW_FUSE := $(call PARSE_BOARD,$(BOARD_TAG),menu.(chip|cpu).$(BOARD_SUB).bootloader.low_fuses)
-        ifndef ISP_LOW_FUSE
-            ISP_LOW_FUSE := $(call PARSE_BOARD,$(BOARD_TAG),bootloader.low_fuses)
-        endif
-    endif
-
-    ifndef ISP_EXT_FUSE
-        ISP_EXT_FUSE := $(call PARSE_BOARD,$(BOARD_TAG),menu.(chip|cpu).$(BOARD_SUB).bootloader.extended_fuses)
-        ifndef ISP_EXT_FUSE
-            ISP_EXT_FUSE := $(call PARSE_BOARD,$(BOARD_TAG),bootloader.extended_fuses)
-        endif
-    endif
-
-    ifndef BOOTLOADER_PATH
-        BOOTLOADER_PATH = $(call PARSE_BOARD,$(BOARD_TAG),bootloader.path)
-    endif
-
-    ifndef BOOTLOADER_FILE
-        BOOTLOADER_FILE := $(call PARSE_BOARD,$(BOARD_TAG),menu.(chip|cpu).$(BOARD_SUB).bootloader.file)
-        ifndef BOOTLOADER_FILE
-            BOOTLOADER_FILE := $(call PARSE_BOARD,$(BOARD_TAG),bootloader.file)
-        endif
-    endif
-
-    ifndef ISP_LOCK_FUSE_POST
-        ISP_LOCK_FUSE_POST = $(call PARSE_BOARD,$(BOARD_TAG),bootloader.lock_bits)
     endif
 
     ifndef HEX_MAXIMUM_SIZE
@@ -833,8 +707,6 @@ ifndef ARDUINO_LIBS
     # automatically determine included libraries
     ARDUINO_LIBS += $(filter $(notdir $(wildcard $(ARDUINO_DIR)/libraries/*)), \
         $(shell sed -ne 's/^ *\# *include *[<\"]\(.*\)\.h[>\"]/\1/p' $(LOCAL_SRCS)))
-    ARDUINO_LIBS += $(filter $(notdir $(wildcard $(ARDUINO_SKETCHBOOK)/libraries/*)), \
-        $(shell sed -ne 's/^ *\# *include *[<\"]\(.*\)\.h[>\"]/\1/p' $(LOCAL_SRCS)))
     ARDUINO_LIBS += $(filter $(notdir $(wildcard $(USER_LIB_PATH)/*)), \
         $(shell sed -ne 's/^ *\# *include *[<\"]\(.*\)\.h[>\"]/\1/p' $(LOCAL_SRCS)))
     ARDUINO_LIBS += $(filter $(notdir $(wildcard $(ARDUINO_PLATFORM_LIB_PATH)/*)), \
@@ -876,11 +748,7 @@ endif
 ifndef ARDUINO_HEADER
     # We should check for Arduino version, not just the file extension
     # because, a .pde file can be used in Arduino 1.0 as well
-    ifeq ($(shell expr $(ARDUINO_VERSION) '<' 100), 1)
-        ARDUINO_HEADER=WProgram.h
-    else
-        ARDUINO_HEADER=Arduino.h
-    endif
+    ARDUINO_HEADER=Arduino.h
 endif
 
 ########################################################################
@@ -1123,9 +991,6 @@ else
     endif
 endif
 
-# Returns the ISP port (first wildcard expansion) if it exists, otherwise it errors.
-get_isp_port = $(if $(wildcard $(ISP_PORT)),$(firstword $(wildcard $(ISP_PORT))),$(if $(findstring Xusb,X$(ISP_PORT)),$(ISP_PORT),$(error ISP port $(ISP_PORT) not found!)))
-
 # Command for avr_size: do $(call avr_size,elffile,hexfile)
 ifneq (,$(findstring AVR,$(shell $(SIZE) --help)))
     # We have a patched version of binutils that mentions AVR - pass the MCU
@@ -1349,82 +1214,12 @@ else
     AVRDUDE_ARD_OPTS += $(call get_monitor_port)
 endif
 
-ifndef ISP_PROG
-    ifneq ($(strip $(AVRDUDE_ARD_PROGRAMMER)),)
-        ISP_PROG = $(AVRDUDE_ARD_PROGRAMMER)
-    else
-        ISP_PROG = stk500v1
-    endif
-endif
 
-ifndef AVRDUDE_ISP_BAUDRATE
-    ifneq ($(strip $(AVRDUDE_ARD_BAUDRATE)),)
-        AVRDUDE_ISP_BAUDRATE = $(AVRDUDE_ARD_BAUDRATE)
-    else
-        AVRDUDE_ISP_BAUDRATE = 19200
-    endif
-endif
-
-# Fuse settings copied from Arduino IDE.
-# https://github.com/arduino/Arduino/blob/master/app/src/processing/app/debug/AvrdudeUploader.java#L254
-
-# Pre fuse settings
-ifndef AVRDUDE_ISP_FUSES_PRE
-    ifneq ($(strip $(ISP_LOCK_FUSE_PRE)),)
-        AVRDUDE_ISP_FUSES_PRE += -U lock:w:$(ISP_LOCK_FUSE_PRE):m
-    endif
-
-    ifneq ($(strip $(ISP_EXT_FUSE)),)
-        AVRDUDE_ISP_FUSES_PRE += -U efuse:w:$(ISP_EXT_FUSE):m
-    endif
-
-    ifneq ($(strip $(ISP_HIGH_FUSE)),)
-        AVRDUDE_ISP_FUSES_PRE += -U hfuse:w:$(ISP_HIGH_FUSE):m
-    endif
-
-    ifneq ($(strip $(ISP_LOW_FUSE)),)
-        AVRDUDE_ISP_FUSES_PRE += -U lfuse:w:$(ISP_LOW_FUSE):m
-    endif
-endif
-
-# Bootloader file settings
-ifndef AVRDUDE_ISP_BURN_BOOTLOADER
-    ifneq ($(strip $(BOOTLOADER_FILE)),)
-        AVRDUDE_ISP_BURN_BOOTLOADER += -U flash:w:$(BOOTLOADER_PARENT)/$(BOOTLOADER_PATH)/$(BOOTLOADER_FILE):i
-    endif
-endif
-
-# Post fuse settings
-ifndef AVRDUDE_ISP_FUSES_POST
-    ifneq ($(strip $(ISP_LOCK_FUSE_POST)),)
-        AVRDUDE_ISP_FUSES_POST += -U lock:w:$(ISP_LOCK_FUSE_POST):m
-    endif
-endif
-
-# Note: setting -D to disable flash erase before programming may cause issues
-# with some boards like attiny84a, making the program not "take",
-# so we do not set it by default.
-AVRDUDE_ISP_OPTS = -c $(ISP_PROG) -b $(AVRDUDE_ISP_BAUDRATE)
-
-ifndef $(ISP_PORT)
-    ifneq ($(strip $(ISP_PROG)),$(filter $(ISP_PROG), usbasp usbtiny gpio linuxgpio avrispmkii dragon_isp dragon_dw))
-        AVRDUDE_ISP_OPTS += -P $(call get_isp_port)
-    endif
-else
-	AVRDUDE_ISP_OPTS += -P $(call get_isp_port)
-endif
-
-ifndef ISP_EEPROM
-    ISP_EEPROM  = 0
-endif
 
 AVRDUDE_UPLOAD_HEX = -U flash:w:$(TARGET_HEX):i
 AVRDUDE_UPLOAD_EEP = -U eeprom:w:$(TARGET_EEP):i
-AVRDUDE_ISPLOAD_OPTS = $(AVRDUDE_UPLOAD_HEX)
 
-ifneq ($(ISP_EEPROM), 0)
-    AVRDUDE_ISPLOAD_OPTS += $(AVRDUDE_UPLOAD_EEP)
-endif
+
 
 ########################################################################
 # Explicit targets start here
@@ -1467,18 +1262,6 @@ do_upload:
 		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ARD_OPTS) \
 			$(AVRDUDE_UPLOAD_HEX)
 
-do_eeprom:	$(TARGET_EEP) $(TARGET_HEX)
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ARD_OPTS) \
-			$(AVRDUDE_UPLOAD_EEP)
-
-eeprom:		$(TARGET_HEX) verify_size
-		$(MAKE) reset
-		$(MAKE) do_eeprom
-
-raw_eeprom:	$(TARGET_HEX) verify_size
-		$(MAKE) error_on_caterina
-		$(MAKE) do_eeprom
-
 reset:
 		$(call arduino_output,Resetting Arduino...)
 		$(RESET_CMD)
@@ -1494,28 +1277,6 @@ reset_stty:
 		(sleep 0.1 2>/dev/null || sleep 1) ; \
 		$$STTYF $(call get_monitor_port) -hupcl
 
-ispload:	$(TARGET_EEP) $(TARGET_HEX) verify_size
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ISP_OPTS) \
-			$(AVRDUDE_ISPLOAD_OPTS)
-
-burn_bootloader:
-ifneq ($(strip $(AVRDUDE_ISP_FUSES_PRE)),)
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ISP_OPTS) -e $(AVRDUDE_ISP_FUSES_PRE)
-endif
-ifneq ($(strip $(AVRDUDE_ISP_BURN_BOOTLOADER)),)
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ISP_OPTS) $(AVRDUDE_ISP_BURN_BOOTLOADER)
-endif
-ifneq ($(strip $(AVRDUDE_ISP_FUSES_POST)),)
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ISP_OPTS) $(AVRDUDE_ISP_FUSES_POST)
-endif
-
-set_fuses:
-ifneq ($(strip $(AVRDUDE_ISP_FUSES_PRE)),)
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ISP_OPTS) -e $(AVRDUDE_ISP_FUSES_PRE)
-endif
-ifneq ($(strip $(AVRDUDE_ISP_FUSES_POST)),)
-		$(AVRDUDE) $(AVRDUDE_COM_OPTS) $(AVRDUDE_ISP_OPTS) $(AVRDUDE_ISP_FUSES_POST)
-endif
 
 clean::
 		$(REMOVE) $(OBJDIR)
@@ -1547,9 +1308,6 @@ endif
 disasm: $(OBJDIR)/$(TARGET).lss
 		@$(ECHO) "The compiled ELF file has been disassembled to $(OBJDIR)/$(TARGET).lss\n\n"
 
-symbol_sizes: $(OBJDIR)/$(TARGET).sym
-		@$(ECHO) "A symbol listing sorted by their size have been dumped to $(OBJDIR)/$(TARGET).sym\n\n"
-
 verify_size:
 ifeq ($(strip $(HEX_MAXIMUM_SIZE)),)
 	@$(ECHO) "\nMaximum flash memory of $(BOARD_TAG) is not specified. Make sure the size of $(TARGET_HEX) is less than $(BOARD_TAG)\'s flash memory\n\n"
@@ -1557,25 +1315,13 @@ endif
 	@if [ ! -f $(TARGET_HEX).sizeok ]; then echo >&2 "\nThe size of the compiled binary file is greater than the $(BOARD_TAG)'s flash memory. \
 See http://www.arduino.cc/en/Guide/Troubleshooting#size for tips on reducing it."; false; fi
 
-generate_assembly: $(OBJDIR)/$(TARGET).s
-		@$(ECHO) "Compiler-generated assembly for the main input source has been dumped to $(OBJDIR)/$(TARGET).s\n\n"
-
-generated_assembly: generate_assembly
-		@$(ECHO) "\"generated_assembly\" target is deprecated. Use \"generate_assembly\" target instead\n\n"
-
-help_vars:
-		@$(CAT) $(ARDMK_DIR)/arduino-mk-vars.md
 
 help:
 		@$(ECHO) "\nAvailable targets:\n\
   make                   - compile the code\n\
   make upload            - upload\n\
-  make ispload           - upload using an ISP\n\
   make raw_upload        - upload without first resetting\n\
-  make eeprom            - upload the eep file\n\
-  make raw_eeprom        - upload the eep file without first resetting\n\
   make clean             - remove all our dependencies\n\
-  make depends           - update dependencies\n\
   make reset             - reset the Arduino by tickling DTR or changing baud\n\
                            rate on the serial port.\n\
   make show_boards       - list all the boards defined in boards.txt\n\
@@ -1590,19 +1336,13 @@ help:
   make disasm            - generate a .lss file that contains disassembly\n\
                            of the compiled file interspersed with your\n\
                            original source code.\n\
-  make generate_assembly - generate a .s file containing the compiler\n\
-                           generated assembly of the main sketch.\n\
-  make burn_bootloader   - burn bootloader and fuses\n\
-  make set_fuses         - set fuses without burning bootloader\n\
-  make help_vars         - print all variables that can be overridden\n\
   make help              - show this help\n\
 "
 	@$(ECHO) "Please refer to $(ARDMK_DIR)/Arduino.mk for more details.\n"
 
-.PHONY: all upload raw_upload raw_eeprom error_on_caterina reset reset_stty ispload \
-        clean depends size show_boards monitor disasm symbol_sizes generated_assembly \
-        generate_assembly verify_size burn_bootloader help pre-build
+.PHONY: all upload raw_upload  error_on_caterina reset reset_stty  \
+        clean  size show_boards monitor symbol_sizes  \
+         verify_size  help pre-build
 
 # added - in the beginning, so that we don't get an error if the file is not present
 -include $(DEPS)
-

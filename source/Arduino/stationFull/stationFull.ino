@@ -1,24 +1,29 @@
 
 // istsos comunication library (GPRS)
-#include <istsos.h> 
-#include <com/drok.h>
+#include <istsos.h>
+#include <com/sim800.h>
 #include <log/sdIstsos.h>
-#include <LiquidCrystal.h>
+
 // temperature
 #include <OneWire.h>
 #include <DallasTemperature.h>
+
 // pressure/humidity
 #include <Adafruit_Sensor.h>
 #include <Adafruit_BME280.h>
+
 // light
 #include <BH1750.h>
+
 // RTC
 #include <RTClib.h>
+
 // internal temp
 #include <DHT.h>
 
 // Power saving
 #include <LowPower.h>
+//#include <LiquidCrystal.h>
 
 /*****************************************
  * Define sensor pin
@@ -43,7 +48,7 @@
 // time to send the data
 #define SENDING_TIME (1000UL * 60 * 15)
 
-LiquidCrystal lcd(41, 39, 37, 35, 33, 31);
+// LiquidCrystal lcd(41, 39, 37, 35, 33, 31);
 DHT dht(DHTPIN, DHTTYPE);
 
 /*****************************************
@@ -59,7 +64,7 @@ DallasTemperature dstemp(&oneWire);
 /*****************************************
  * Comunication and logging system
  ****************************************/
-Drok com = Drok(Serial1, "gprs.swisscom.ch", "gprs", "gprs", "YWRtaW46QlYzWGp2clA=");
+Sim800 com = Sim800(Serial1, "gprs.swisscom.ch", "gprs", "gprs", "YWRtaW46QlYzWGp2clA=");
 SdIstsos sdLog = SdIstsos(Serial2);
 
 const char server[] = {"geoservice.ist.supsi.ch"};
@@ -78,6 +83,8 @@ float humidity = 0.0;
 float temp = 0.0;
 short soil = 0;
 float intTemp = 0.0;
+
+uint8_t lastmin = 0;
 
 //These are all the weather values that wunderground expects:
 short winddir = 0; // [0-360 instantaneous wind direction]
@@ -140,7 +147,7 @@ void wspeedIRQ()
 
 /**
  * get wind speed
- * 
+ *
  * @return float wind speed (m/s)
  */
 float get_wind_speed()
@@ -183,15 +190,14 @@ short get_wind_direction()
 }
 
 /**
- * Syncronize RTC 
+ * Syncronize RTC
  */
 bool syncRTC() {
 
   Serial.print(F("Sincronize RTC..."));
-  
+
   uint8_t tmp = 0;
   uint32_t* result = com.ntpUpdate("metasntp11.admin.ch", 8);
-
   while(result[0] < 2017 && tmp < 5)
   {
     result = com.ntpUpdate("metasntp11.admin.ch", 8);
@@ -203,6 +209,7 @@ bool syncRTC() {
   if (tmp >= 5)
     return false;
 
+  // rtc.adjust(DateTime(2017, 7, 7, 15, 0, 0));
   rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
 
   if ((bool)result[8] >= 0)
@@ -220,11 +227,12 @@ bool syncRTC() {
 template <typename T>
 void printToLcd(const T message, uint8_t col=0, uint8_t row=0,  bool clear=true)
 {
-  if (clear)
-    lcd.clear();
+    return;
+  //if (clear)
+    //lcd.clear();
 
-  lcd.setCursor(col,row);
-  lcd.print(message); 
+  //lcd.setCursor(col,row);
+  //lcd.print(message);
 }
 
 float getInternalTemp()
@@ -271,7 +279,7 @@ void setup() {
   Serial.println(F("light ready"));
   dht.begin();
   Serial.println(F("DHT ready"));
-  
+
 
   bool status = bme.begin(BME_I2C_ADDR);
   if (!status) {
@@ -284,7 +292,7 @@ void setup() {
     Serial.println(F("Couldn't find RTC"));
     return;
   }
-  
+
   // set pin mode
   pinMode(SOIL_A_PIN, INPUT);
 
@@ -315,6 +323,8 @@ void setup() {
     while(1);
   }
 
+  lastmin = rtc.now().minute();
+
   printToLcd(F("Ready to start..."));
 
   checkInternalTemp();
@@ -323,10 +333,10 @@ void setup() {
 
 /**
  * Read soil humidity (0-100)
- * 
+ *
  * @return short soil humidity
  */
-short readSoil() 
+short readSoil()
 {
   short value = analogRead(SOIL_A_PIN);
   short measure = ((1023.0 - value) / 1023.0) * 100.0;
@@ -334,9 +344,9 @@ short readSoil()
 }
 
 /**
- * 
+ *
  * Read mesure from sensrs
- * 
+ *
  */
 void getWeatherMeasure()
 {
@@ -362,12 +372,12 @@ void getWeatherMeasure()
   rain = lastrain;
 
   lastrain = 0;
-  
+
 }
 
 /**
  * This function generate a String with the date and the measures
- * 
+ *
  * @return String string containing date and measures
  */
 String formatWeatherMeasure() {
@@ -387,7 +397,7 @@ String formatWeatherMeasure() {
   message += "," + String(rain);
   message += "," + String(winddir);
   message += "," + String(windspeedms);
-  
+
   return message;
 
 }
@@ -395,48 +405,57 @@ String formatWeatherMeasure() {
 void loop() {
 
   // check if it's time to log data
-  if ((unsigned long)(millis() - lastRun) >= SAMPLING_TIME)
+  uint8_t min = rtc.now().minute();
+  //if ((unsigned long)(millis() - lastRun) >= SAMPLING_TIME)
+  if(min != lastmin)
   {
     lastRun = millis();
     printToLcd(F("Reading data..."));
-    
+
     getWeatherMeasure();
-    
+
     String message = formatWeatherMeasure();
     Serial.println(message);
     sos.logData(message);
-    
+
     printToLcd(F("waiting..."));
 
+    lastmin = min;
     checkInternalTemp();
   }
 
   // check if it's time to send data to the server
   if ((unsigned long)(millis() - lastSend) >= SENDING_TIME)
   {
-
+      DateTime dt = rtc.now();
+      char sz[30];
+      sprintf(sz, "%04d-%02d-%02dT%02d:%02d:%02d%s", dt.year(), dt.month(), dt.day(), dt.hour(), dt.minute(), dt.second(), timezone);
+      String msg = String(sz);
       lastSend = millis();
+
       printToLcd(F("Sending data..."));
       bool res = sos.sendDataTest();
 
       if (res)
       {
+        msg += ": data send";
+        sos.logging("com.log", msg);
         Serial.println(F("data send"));
         printToLcd(F("OK"));
-      }  
+      }
       else
       {
+        msg += ": problem sending data";
+        sos.logging("com.log", msg);
         Serial.println(F("problem sending data"));
         printToLcd(F("NOT OK"));
       }
-      
+
       delay(5000);
       printToLcd(F("waiting..."));
-    
+
   }
 
   //LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
-  
+
 }
-
-
