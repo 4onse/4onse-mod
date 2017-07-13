@@ -14,7 +14,7 @@ String getFormattedDate(DateTime dt, const char timezone[])
  */
 bool syncRTC(ICom& com, RTC_DS1307 rtc, char timezone[]) {
 
-    Serial.print(F("Sincronize RTC..."));
+    /*Serial.print(F("Sincronize RTC..."));
 
     uint8_t tmp = 0;
     uint32_t* result = com.ntpUpdate("metasntp11.admin.ch", 8);
@@ -29,18 +29,18 @@ bool syncRTC(ICom& com, RTC_DS1307 rtc, char timezone[]) {
     if (tmp >= 5)
         return false;
 
-    //rtc.adjust(DateTime(2017, 7, 10, 23, 52, 0));
+
     rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
-
-
 
     if ((bool)result[8] >= 0)
         sprintf(timezone, "+%02d%02d", (int)result[6], (int)result[7]);
     else
         sprintf(timezone, "-%02d%02d", (int)result[6], (int)result[7]);
+    */
 
+    rtc.adjust(DateTime(2017, 7, 13, 9, 00, 0));
+    sprintf(timezone, "+%02d%02", 2, 0);
 
-    Serial.println(F("done"));
 
     //delete[] result;
 

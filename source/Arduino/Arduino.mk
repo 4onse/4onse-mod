@@ -881,11 +881,36 @@ else
     $(call show_config_variable,MCU_FLAG_NAME,[USER])
 endif
 
+ifndef SERVER
+	SERVER = '"istsos.org"'
+endif
+
+ifndef APN
+	APN = '"gprs.swisscom.ch"'
+endif
+
+ifndef APNUSER
+	APNUSER = '"gprs"'
+endif
+
+ifndef PASS
+	PASS = '"gprs"'
+endif
+
+ifndef URI
+	URI = '"/4onse/wa/istsos/services/sos/operations/fastinsert"'
+endif
+
+ifndef PROCEDURE_ID
+	PROCEDURE_ID = ''
+endif
+
 # Using += instead of =, so that CPPFLAGS can be set per sketch level
 CPPFLAGS      += -$(MCU_FLAG_NAME)=$(MCU) -DF_CPU=$(F_CPU) -DARDUINO=$(ARDUINO_VERSION) $(ARDUINO_ARCH_FLAG) -D__PROG_TYPES_COMPAT__ \
         -I$(ARDUINO_CORE_PATH) -I$(ARDUINO_VAR_PATH)/$(VARIANT) \
         $(SYS_INCLUDES) $(PLATFORM_INCLUDES) $(USER_INCLUDES) -Wall -ffunction-sections \
-        -fdata-sections
+        -fdata-sections -DSERVER=$(SERVER) -DAPN=$(APN) -DAPNUSER=$(APNUSER) -DPASS=$(PASS) -DURI=$(URI) -DPROCEDURE_ID=$(PROCEDURE_ID)
+#TODO add params here
 
 ifdef DEBUG
 OPTIMIZATION_FLAGS= $(DEBUG_FLAGS)

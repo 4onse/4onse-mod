@@ -48,7 +48,9 @@
 // time between different measures
 #define SAMPLING_TIME 1
 // time to send the data
-#define SENDING_TIME 5
+#define SENDING_TIME 10
+
+#define SF(x) String(F(x))
 
 // LiquidCrystal lcd(41, 39, 37, 35, 33, 31);
 DHT dht(DHTPIN, DHTTYPE);
@@ -66,15 +68,15 @@ DallasTemperature dstemp(&oneWire);
 /*****************************************
  * Comunication and logging system
  ****************************************/
-Sim800 com = Sim800(Serial1, "gprs.swisscom.ch", "gprs", "gprs", "YWRtaW46QlYzWGp2clA=");
+Sim800 com = Sim800(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=");
 //SdIstsos sdLog = SdIstsos(Serial2);
 OpenLog sdLog = OpenLog(Serial2);
 
-const char server[] = {"geoservice.ist.supsi.ch"};
-const char uri[] = {"/4onse/wa/istsos/services/sos/operations/fastinsert"};
-const char procedure[] = {"c264e6ba50cb11e79e2008002745029a"};  // {"64341ccc479911e79e2008002745029a"};
+//const char server[] = {"geoservice.ist.supsi.ch"};
+//const char uri[] = {"/4onse/wa/istsos/services/sos/operations/fastinsert"};
+// const char procedure[] = {"c264e6ba50cb11e79e2008002745029a"};  // {"64341ccc479911e79e2008002745029a"};
 
-Istsos sos(sdLog, com, server, uri, procedure);
+Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
 
 /******************************************
@@ -112,10 +114,10 @@ volatile unsigned long raintime, rainlast;
  * Function to monitor RAM usage
  *****************************************/
 /*int freeRam () {
-   extern int __heap_start, *__brkval;
-   int v;
-   return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-   }*/
+    extern int __heap_start, *__brkval;
+    int v;
+    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}*/
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // Hardware interrupt
@@ -125,6 +127,8 @@ volatile unsigned long raintime, rainlast;
    Count rain gauge bucket tips as they occur
    ctivated by the magnet and reed switch in the rain gauge, attached to input D2
  */
+
+ bool logTik = false;
 void rainIRQ()
 {
     raintime = millis(); // grab current time
@@ -134,6 +138,9 @@ void rainIRQ()
         lastrain += 0.2; //0.011;
 
         rainlast = millis(); // raintime; // set up for next event
+        //TODO log tik date
+        logTik= true;
+        //sos.tikLogging(getFormattedDate(rtc.now(), timezone));
     }
 }
 
@@ -231,6 +238,14 @@ void checkInternalTemp()
     }
 }
 
+
+void logMessage(const String message)
+{
+    String date = getFormattedDate(rtc.now(),timezone);
+
+    sos.logging(date, message);
+}
+
 void setup() {
         // init serial port
     Serial.begin(9600);
@@ -238,7 +253,21 @@ void setup() {
     Serial2.begin(9600);
     delay(3000);
 
+    if (!rtc.begin()) {
+        Serial.println(F("Couldn't find RTC"));
+        return;
+    }
+
+    Serial.println(SERVER);
+    Serial.println(APN);
+    // Serial.println(APNUSER);
+    // Serial.println(PASS);
+    sos.begin();
+    Serial.println(F("SOS ready"));
+
     Serial.println(F("Init..."));
+
+    logMessage(SF("Start init process...."));
 
     //lcd.begin(16, 2);   // Number of columns, Number of rows of the LCD
 
@@ -256,10 +285,7 @@ void setup() {
     }
     Serial.println(F("BME ready"));
 
-    if (!rtc.begin()) {
-        Serial.println(F("Couldn't find RTC"));
-        return;
-    }
+
 
     // set pin mode
     pinMode(SOIL_A_PIN, INPUT);
@@ -276,12 +302,12 @@ void setup() {
     // turn on interrupts
     interrupts();
 
-    sos.begin();
-    Serial.println(F("SOS ready"));
-
     Serial.println(F("done"));
+
+    logMessage(SF("init process success"));
     delay(5000);
 
+    logMessage(SF("Start rtc sync process"));
     // sync RTC
     bool flag = syncRTC(com, rtc, timezone);
 
@@ -291,6 +317,8 @@ void setup() {
         while(1) ;
     }
 
+    logMessage(SF("RTC sync success"));
+
     lastMin = rtc.now().minute();
     lastSend = rtc.now().minute();
     lastDay = rtc.now().day();
@@ -299,6 +327,7 @@ void setup() {
 
     checkInternalTemp();
 
+    logMessage(SF("start loop"));
 }
 
 /**
@@ -375,8 +404,9 @@ bool sendStatus = true;
 */
 void sendData()
 {
-    String msg = getFormattedDate(rtc.now(), timezone);
-    lastSend = rtc.now().minute(); // millis();
+    String date = getFormattedDate(rtc.now(), timezone);
+    if (count == 0)
+        lastSend = rtc.now().minute(); // millis();
 
     printToLcd(F("Sending data..."));
 
@@ -384,22 +414,21 @@ void sendData()
 
     if (res)
     {
-        msg += ": data send";
-        sos.logging("com.log", msg);
-        Serial.println(msg);
+        logMessage(SF("data send"));
+        Serial.println(F("data send"));
         sendStatus = true;
         count = 0;
     }
     else
     {
         count++;
-
-        if (count >= 5)
+        sendStatus = false;
+        if (count >= 3)
         {
-            msg += ": problem sending data";
-            sos.logging("com.log", msg);
-            Serial.println(msg);
+            logMessage(SF("problem sending data"));
+            Serial.println(F("problem sending data"));
             sendStatus = true;
+            count = 0;
         }
     }
 
@@ -411,6 +440,13 @@ void loop() {
 
     // check if it's time to log data
     uint8_t min = rtc.now().minute();
+
+
+    if(logTik)
+    {
+        Serial.println(getFormattedDate(rtc.now(), timezone));
+        logTik = false;
+    }
 
     if(calcInterval(min, lastMin, SAMPLING_TIME))
     {
