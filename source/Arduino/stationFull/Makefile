@@ -11,4 +11,9 @@ SERVER 			= '"geoservice.ist.supsi.ch"'
 URI 			= '"/4onse/wa/istsos/services/sos/operations/fastinsert"'
 PROCEDURE_ID 	= '"c264e6ba50cb11e79e2008002745029a"'
 
+APN				= '"gprs.swisscom.ch"'
+APNUSER			= '"gprs"'
+PASS			= '"gprs"'
+
+
 include ../Arduino.mk
