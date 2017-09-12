@@ -2,7 +2,6 @@
 // istsos comunication library (GPRS)
 #include <istsos.h>
 #include <com/sim800.h>
-//#include <log/sdIstsos.h>
 #include <log/sdOpenlog.h>
 
 // temperature
@@ -24,7 +23,6 @@
 
 // Power saving
 // #include <LowPower.h>
-// #include <LiquidCrystal.h>
 #include "functions.h"
 
 /*****************************************
@@ -41,9 +39,6 @@
 #define WSPEED 3
 #define RAIN 2
 #define WDIR A0
-// const byte WSPEED = 3;
-// const byte RAIN = 2;
-// const byte WDIR = A0;
 
 // time between different measures
 #define SAMPLING_TIME 1
@@ -52,7 +47,6 @@
 
 #define SF(x) String(F(x))
 
-// LiquidCrystal lcd(41, 39, 37, 35, 33, 31);
 DHT dht(DHTPIN, DHTTYPE);
 
 /*****************************************
@@ -69,12 +63,9 @@ DallasTemperature dstemp(&oneWire);
  * Comunication and logging system
  ****************************************/
 Sim800 com = Sim800(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=");
-//SdIstsos sdLog = SdIstsos(Serial2);
+
 OpenLog sdLog = OpenLog(Serial2);
 
-//const char server[] = {"geoservice.ist.supsi.ch"};
-//const char uri[] = {"/4onse/wa/istsos/services/sos/operations/fastinsert"};
-// const char procedure[] = {"c264e6ba50cb11e79e2008002745029a"};  // {"64341ccc479911e79e2008002745029a"};
 
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
@@ -98,7 +89,8 @@ float windspeedms = 0; // [m/s instantaneous wind speed]
 float lastrain = 0;
 float rain = 0.0;
 
-char timezone[7];
+// char timezone[7];
+
 
 // wind and rain
 // unsigned long lastRun = 0UL;
@@ -113,7 +105,7 @@ volatile unsigned long raintime, rainlast;
 /******************************************
  * Function to monitor RAM usage
  *****************************************/
-/*int freeRam () {
+/*int freeRam() {
     extern int __heap_start, *__brkval;
     int v;
     return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
@@ -140,7 +132,7 @@ void rainIRQ()
         rainlast = millis(); // raintime; // set up for next event
         //TODO log tik date
         logTik= true;
-        //sos.tikLogging(getFormattedDate(rtc.now(), timezone));
+        //sos.tikLogging(getFormattedDate(rtc.now()));
     }
 }
 
@@ -200,17 +192,6 @@ short get_wind_direction()
     return -1;
 }
 
-template <typename T>
-void printToLcd(const T message, uint8_t col=0, uint8_t row=0,  bool clear=true)
-{
-    return;
-    //if (clear)
-    //lcd.clear();
-
-    //lcd.setCursor(col,row);
-    //lcd.print(message);
-}
-
 float getInternalTemp()
 {
     return dht.readTemperature();
@@ -221,27 +202,25 @@ float getInternalTemp()
  */
 void checkInternalTemp()
 {
-    float t = getInternalTemp();
-
-    printToLcd(String("int temp: ") + String(t), 0, 1, false);
+    // float t = getInternalTemp();
 
     // remove return to start the fan
     return;
 
-    if (t >= 40.0)
-    {
-        Serial.println(F("Start fan...."));
-        digitalWrite(FAN_PIN, LOW);
-        delay(20000);
-        Serial.println(F("Stop fan..."));
-        digitalWrite(FAN_PIN, HIGH);
-    }
+    // if (t >= 40.0)
+    // {
+    //     Serial.println(F("Start fan...."));
+    //     digitalWrite(FAN_PIN, LOW);
+    //     delay(20000);
+    //     Serial.println(F("Stop fan..."));
+    //     digitalWrite(FAN_PIN, HIGH);
+    // }
 }
 
 
 void logMessage(const String message)
 {
-    String date = getFormattedDate(rtc.now(),timezone);
+    String date = getFormattedDate(rtc.now());
 
     sos.logging(date, message);
 }
@@ -258,18 +237,12 @@ void setup() {
         return;
     }
 
-    Serial.println(SERVER);
-    Serial.println(APN);
-    // Serial.println(APNUSER);
-    // Serial.println(PASS);
     sos.begin();
     Serial.println(F("SOS ready"));
 
     Serial.println(F("Init..."));
 
-    logMessage(SF("Start init process...."));
-
-    //lcd.begin(16, 2);   // Number of columns, Number of rows of the LCD
+    logMessage(SF("Start init process..."));
 
     // init sensors
     lightMeter.begin();
@@ -280,12 +253,11 @@ void setup() {
 
     bool status = bme.begin(BME_I2C_ADDR);
     if (!status) {
-        Serial.println(F("Could not find a valid BME280 sensor, check wiring!"));
+        Serial.println(F("BME280 sensor not found"));
+        logMessage(SF("BME280 sensor not found"));
         while (1) ;
     }
     Serial.println(F("BME ready"));
-
-
 
     // set pin mode
     pinMode(SOIL_A_PIN, INPUT);
@@ -307,14 +279,22 @@ void setup() {
     logMessage(SF("init process success"));
     delay(5000);
 
-    logMessage(SF("Start rtc sync process"));
-    // sync RTC
-    bool flag = syncRTC(com, rtc, timezone);
+    // logMessage(SF("Start rtc sync process"));
+    // // sync RTC
+    // bool flag = syncRTC(com, rtc);
+    //
+    // if(!flag)
+    // {
+    //     Serial.print(F("Problem sync RTC..."));
+    //     while(1);
+    // }
 
-    if(!flag)
+    bool flag = false;
+
+    while(!flag)
     {
-        Serial.print(F("Problem sync RTC..."));
-        while(1) ;
+        logMessage(SF("Start rtc sync process"));
+        flag = syncRTC(com, rtc);
     }
 
     logMessage(SF("RTC sync success"));
@@ -322,8 +302,6 @@ void setup() {
     lastMin = rtc.now().minute();
     lastSend = rtc.now().minute();
     lastDay = rtc.now().day();
-
-    printToLcd(F("Ready to start..."));
 
     checkInternalTemp();
 
@@ -358,6 +336,7 @@ void getWeatherMeasure()
     // istsos max value = 9999
     if (lux >= 10000)
             lux = 9999;
+
     pressure = bme.readPressure() / 100.0F;
     humidity = bme.readHumidity();
     temp = dstemp.getTempCByIndex(0);
@@ -381,7 +360,7 @@ void getWeatherMeasure()
  */
 String formatWeatherMeasure() {
 
-    String message = getFormattedDate(rtc.now(), timezone);
+    String message = getFormattedDate(rtc.now());
 
     message += "," + String(intTemp);
     message += "," + String(soil);
@@ -404,11 +383,11 @@ bool sendStatus = true;
 */
 void sendData()
 {
-    String date = getFormattedDate(rtc.now(), timezone);
+    String date = getFormattedDate(rtc.now());
     if (count == 0)
         lastSend = rtc.now().minute(); // millis();
 
-    printToLcd(F("Sending data..."));
+    logMessage(SF("Sending data..."));
 
     bool res = sos.sendDataTest();
 
@@ -433,7 +412,6 @@ void sendData()
     }
 
     delay(1000);
-    printToLcd(F("waiting..."));
 }
 
 void loop() {
@@ -441,17 +419,8 @@ void loop() {
     // check if it's time to log data
     uint8_t min = rtc.now().minute();
 
-
-    if(logTik)
-    {
-        Serial.println(getFormattedDate(rtc.now(), timezone));
-        logTik = false;
-    }
-
     if(calcInterval(min, lastMin, SAMPLING_TIME))
     {
-        //lastRun = millis();
-        printToLcd(F("Reading data..."));
 
         getWeatherMeasure();
 
@@ -459,8 +428,6 @@ void loop() {
         Serial.println(message);
 
         sos.logData(message);
-
-        printToLcd(F("waiting..."));
 
         lastMin = min;
         checkInternalTemp();
@@ -473,7 +440,7 @@ void loop() {
         // sync RTC every day
         if(rtc.now().day() != lastDay && sendStatus)
         {
-            bool flag = syncRTC(com, rtc, timezone);
+            bool flag = syncRTC(com, rtc);
 
             if(!flag)
             {
