@@ -1,7 +1,7 @@
 
 // istsos comunication library (GPRS)
 #include <istsos.h>
-#include <com/sim800.h>
+#include <com/drok.h>
 #include <log/sdOpenlog.h>
 
 // temperature
@@ -30,7 +30,7 @@
  ****************************************/
 #define ONE_WIRE_BUS 9
 #define SOIL_A_PIN A13
-#define BME_I2C_ADDR 0x76
+#define BME_I2C_ADDR 0x77
 
 #define DHTPIN 10
 #define DHTTYPE DHT11
@@ -41,9 +41,9 @@
 #define WDIR A0
 
 // time between different measures
-#define SAMPLING_TIME 1
+#define SAMPLING_TIME  1 * 60000
 // time to send the data
-#define SENDING_TIME 10
+#define SENDING_TIME 15 * 60000
 
 #define SF(x) String(F(x))
 
@@ -62,7 +62,7 @@ DallasTemperature dstemp(&oneWire);
 /*****************************************
  * Comunication and logging system
  ****************************************/
-Sim800 com = Sim800(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=");
+Drok com = Drok(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=");
 
 OpenLog sdLog = OpenLog(Serial2);
 
@@ -94,12 +94,13 @@ float rain = 0.0;
 
 // wind and rain
 // unsigned long lastRun = 0UL;
-uint8_t lastSend = 0;
+//uint8_t lastSend = 0;
 
 byte windClicks = 0;
 volatile unsigned long lastWindCheck = 0;
 volatile long lastWindIRQ = 0;
 volatile unsigned long raintime, rainlast;
+unsigned long lastRun, lastSend;
 
 
 /******************************************
@@ -169,7 +170,7 @@ float get_wind_speed()
 
     return (windSpeed);
 }
-
+10K
 /*
    Read the wind direction sensor, return heading in degrees
  */
@@ -279,16 +280,6 @@ void setup() {
     logMessage(SF("init process success"));
     delay(5000);
 
-    // logMessage(SF("Start rtc sync process"));
-    // // sync RTC
-    // bool flag = syncRTC(com, rtc);
-    //
-    // if(!flag)
-    // {
-    //     Serial.print(F("Problem sync RTC..."));
-    //     while(1);
-    // }
-
     bool flag = false;
 
     while(!flag)
@@ -299,13 +290,16 @@ void setup() {
 
     logMessage(SF("RTC sync success"));
 
-    lastMin = rtc.now().minute();
-    lastSend = rtc.now().minute();
-    lastDay = rtc.now().day();
-
     checkInternalTemp();
 
     logMessage(SF("start loop"));
+
+    delay(5000);
+
+    lastDay = rtc.now().day();
+
+    lastRun = millis();
+    lastSend = millis();
 }
 
 /**
@@ -385,7 +379,7 @@ void sendData()
 {
     String date = getFormattedDate(rtc.now());
     if (count == 0)
-        lastSend = rtc.now().minute(); // millis();
+        lastSend = millis(); // rtc.now().minute(); // millis();
 
     logMessage(SF("Sending data..."));
 
@@ -411,16 +405,19 @@ void sendData()
         }
     }
 
-    delay(1000);
 }
 
 void loop() {
 
     // check if it's time to log data
-    uint8_t min = rtc.now().minute();
+    // uint8_t min = rtc.now().minute();
 
-    if(calcInterval(min, lastMin, SAMPLING_TIME))
+    if((unsigned long)(millis() - lastRun) > SAMPLING_TIME)
+    // if(calcInterval(min, lastMin, SAMPLING_TIME))
     {
+        // uint8_t min = rtc.now().minute();
+        delay(100);
+        lastRun = millis();
 
         getWeatherMeasure();
 
@@ -429,28 +426,37 @@ void loop() {
 
         sos.logData(message);
 
-        lastMin = min;
         checkInternalTemp();
 
-        if (calcInterval(min, lastSend, SENDING_TIME) || !sendStatus)
+        //if (calcInterval(min, lastSend, SENDING_TIME) || !sendStatus)
+        if (((unsigned long)(millis() - lastSend) > SENDING_TIME) || !sendStatus)
         {
+            // lastSend = millis();
+            Serial.println(F("Sending data..."));
             sendData();
         }
 
-        // sync RTC every day
-        if(rtc.now().day() != lastDay && sendStatus)
-        {
-            bool flag = syncRTC(com, rtc);
+        // if(rtc.now().day() != lastDay && sendStatus)
+        // {
+        //     Serial.println(F("time to sync rtc..."));
+        //     delay(2000);
+        //     lastDay = rtc.now().day();
+        // }
 
-            if(!flag)
-            {
-                Serial.println(F("Problem sync RTC..."));
-            }
-            else
-            {
-                lastDay = rtc.now().day();
-            }
-        }
+        // // sync RTC every day
+        // if(rtc.now().day() != lastDay && sendStatus)
+        // {
+        //     bool flag = syncRTC(com, rtc);
+        //
+        //     if(!flag)
+        //     {
+        //         Serial.println(F("Problem sync RTC..."));
+        //     }
+        //     else
+        //     {
+        //         lastDay = rtc.now().day();
+        //     }
+        // }
     }
     //LowPower.powerSave(SLEEP_8S, ADC_OFF, BOD_OFF, TIMER2_OFF);
 
