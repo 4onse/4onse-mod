@@ -170,7 +170,6 @@ float get_wind_speed()
 
     return (windSpeed);
 }
-10K
 /*
    Read the wind direction sensor, return heading in degrees
  */
