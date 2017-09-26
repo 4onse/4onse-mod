@@ -43,7 +43,7 @@
 // time between different measures
 #define SAMPLING_TIME  1 * 60000
 // time to send the data
-#define SENDING_TIME 15 * 60000
+#define SENDING_TIME 5 * 60000
 
 #define SF(x) String(F(x))
 
@@ -62,7 +62,7 @@ DallasTemperature dstemp(&oneWire);
 /*****************************************
  * Comunication and logging system
  ****************************************/
-Drok com = Drok(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=");
+Drok com = Drok(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=", "", false);
 
 OpenLog sdLog = OpenLog(Serial2);
 

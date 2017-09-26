@@ -32,12 +32,10 @@ bool syncRTC(ICom& com, RTC_DS1307 rtc) {
         delay(5000);
     }
 
+    com.disconnect();
+
     if (tmp >= 5)
         return false;
-
-    Serial.print("Year: ");
-    Serial.println(result[0]);
-
 
     rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
     Serial.println(F("done"));
