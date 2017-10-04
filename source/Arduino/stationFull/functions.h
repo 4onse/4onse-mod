@@ -9,6 +9,6 @@
 String getFormattedDate(DateTime dt);
 bool syncRTC(ICom& com, RTC_DS1307 rtc);
 bool calcInterval(uint8_t current, uint8_t last, unsigned int interval);
-
+bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t sendingMinutes);
 
 #endif

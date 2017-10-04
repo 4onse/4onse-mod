@@ -25,7 +25,6 @@
 // #include <LowPower.h>
 #include "functions.h"
 
-
 /*****************************************
  * Configure params
  ****************************************/
@@ -55,10 +54,8 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define RAIN 2
 #define WDIR A0
 
-// time between different measures
-#define SAMPLING_TIME  1 * 60000
-// time to send the data
-#define SENDING_TIME 5 * 60000
+#define SAMPLING_TIME_MIN 1
+#define SENDING_TIME_MIN 5
 
 #define SF(x) String(F(x))
 
@@ -73,16 +70,12 @@ RTC_DS1307 rtc;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dstemp(&oneWire);
 
-
 /*****************************************
  * Comunication and logging system
  ****************************************/
 Drok com = Drok(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=", "", false);
-
 OpenLog sdLog = OpenLog(Serial2);
-
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
-
 
 /******************************************
  * Global variable definition
@@ -96,20 +89,17 @@ float intTemp = 0.0;
 
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
+DateTime lastSendDate ;
 
 //These are all the weather values that wunderground expects:
 short winddir = 0; // [0-360 instantaneous wind direction]
 float windspeedms = 0; // [m/s instantaneous wind speed]
-float lastrain = 0;
+volatile float lastrain = 0;
 float rain = 0.0;
 
 // char timezone[7];
 
-
-// wind and rain
-// unsigned long lastRun = 0UL;
-//uint8_t lastSend = 0;
-
+// wind and rain variable
 byte windClicks = 0;
 volatile unsigned long lastWindCheck = 0;
 volatile long lastWindIRQ = 0;
@@ -136,19 +126,16 @@ uint8_t lastMinute;
    ctivated by the magnet and reed switch in the rain gauge, attached to input D2
  */
 
- bool logTik = false;
 void rainIRQ()
 {
+    // lastrain += 0.2; //0.011;
+    // return;
     raintime = millis(); // grab current time
 
     if ((unsigned long)(millis() - rainlast) > 10) // ignore switch-bounce glitches less than 10mS after initial edge
     {
         lastrain += 0.2; //0.011;
-
         rainlast = millis(); // raintime; // set up for next event
-        //TODO log tik date
-        logTik= true;
-        //sos.tikLogging(getFormattedDate(rtc.now()));
     }
 }
 
@@ -193,7 +180,7 @@ short get_wind_direction()
     unsigned short adc;
     adc = analogRead(WDIR); // get the current reading from the sensor
 
-    // https://www.sparkfun.com/datasheets/Sensors/Weather/Weather%20Sensor%20Assembly..pdf
+    // https://www.sparkfun.com/datasheets/Sensors/Weather/Weather%20Sensor%20Assembly.pdf
     // using 10K pull-up resistor
 
     if (adc < 100) return (90);
@@ -236,7 +223,6 @@ void checkInternalTemp()
 void logMessage(const String message)
 {
     String date = getFormattedDate(rtc.now());
-
     sos.logging(date, message);
 }
 
@@ -280,17 +266,20 @@ void setup() {
     }
     Serial.println(F("BME ready"));
 
-    // set pin mode
-    pinMode(SOIL_A_PIN, INPUT);
+
 
     pinMode(WSPEED, INPUT_PULLUP);
     pinMode(RAIN, INPUT_PULLUP);
     pinMode(FAN_PIN, OUTPUT);
     digitalWrite(FAN_PIN, HIGH);
+    // set pin mode
+    pinMode(SOIL_A_PIN, INPUT);
 
     // attach external interrupt pins to IRQ functions (rain and wind speed)
-    attachInterrupt(digitalPinToInterrupt(RAIN), rainIRQ, FALLING);
+    attachInterrupt(digitalPinToInterrupt(RAIN), rainIRQ, FALLING); // FALLING
+    // attachInterrupt(0, rainIRQ, HIGH);
     attachInterrupt(digitalPinToInterrupt(WSPEED), wspeedIRQ, FALLING);
+    // attachInterrupt(1, wspeedIRQ, HIGH);
 
     // turn on interrupts
     interrupts();
@@ -316,13 +305,16 @@ void setup() {
 
     delay(5000);
 
-    uint8_t min = rtc.now().minute();
+    DateTime now = rtc.now();
 
-    lastDay = rtc.now().day();
+    uint8_t min = now.minute();
+
+    lastDay = now.day();
     lastMinute = min;
 
     lastRun = millis();
-    lastSend = millis(); // min; //millis();
+    lastSend = min; //millis();
+    lastSendDate = now;
 }
 
 /**
@@ -377,9 +369,9 @@ void getWeatherMeasure()
  *
  * @return String string containing date and measures
  */
-String formatWeatherMeasure() {
+String formatWeatherMeasure(const DateTime& now) {
 
-    String message = getFormattedDate(rtc.now());
+    String message = getFormattedDate(now);
 
     message += "," + String(intTemp);
     message += "," + String(soil);
@@ -402,11 +394,8 @@ bool sendStatus = true;
 */
 void sendData()
 {
-    String date = getFormattedDate(rtc.now());
-    if (count == 0)
-    {
-        lastSend = millis(); // rtc.now().minute(); // millis();
-    }
+    // String date = getFormattedDate(now);
+
 
     logMessage(SF("Sending data..."));
 
@@ -437,42 +426,39 @@ void sendData()
 void loop() {
 
     // check if it's time to log data
-    // uint8_t min = rtc.now().minute();
+    DateTime now = rtc.now();
+    uint8_t min = now.minute();
 
-    // if( min != lastMinute && min < 60)
-    if((unsigned long)(millis() - lastRun) > SAMPLING_TIME)
-    // if(calcInterval(min, lastMinute, 1) && min < 60)
+    // if((unsigned long)(millis() - lastRun) > SAMPLING_TIME)
+    if(calcInterval(min, lastMinute, SAMPLING_TIME_MIN) && min < 60)
     {
 
-        lastRun = millis();
-        // lastMinute = min;
+        // lastRun = millis();
+        lastMinute = min;
 
         getWeatherMeasure();
 
-        String message = formatWeatherMeasure();
+        String message = formatWeatherMeasure(now);
         Serial.println(message);
 
         sos.logData(message);
 
         checkInternalTemp();
 
-        // if (calcInterval(min, lastSend, 15) || !sendStatus)
-        if (((unsigned long)(millis() - lastSend) > SENDING_TIME) || !sendStatus)
+        if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
-            // lastSend = millis();
-            Serial.println(F("Sending data..."));
+            Serial.println(F("Time to send data"));
             sendData();
+
+            if (count == 0)
+            {
+                lastSendDate = now;
+            }
+            delay(5000);
         }
 
-        // if(rtc.now().day() != lastDay && sendStatus)
-        // {
-        //     Serial.println(F("time to sync rtc..."));
-        //     delay(2000);
-        //     lastDay = rtc.now().day();
-        // }
-
-        // // sync RTC every day
-        uint8_t dayNow = rtc.now().day();
+        // sync RTC every day
+        uint8_t dayNow = now.day();
         // dayNow < 32 avoid rtc bad read
         if( dayNow != lastDay && sendStatus && dayNow < 32)
         {
@@ -484,11 +470,17 @@ void loop() {
             }
             else
             {
-                lastDay = rtc.now().day();
+                now = rtc.now();
+
+                lastDay = now.day();
+
                 Serial.println(F("RTC sync ok"));
             }
         }
     }
-    // LowPower.powerDown(SLEEP_8S, ADC_OFF, BOD_OFF);
+    // back to sleep :)
+    // LowPower.powerDown(SLEEP_8S, ADC_ON, BOD_ON);
+    // LowPower.idle(SLEEP_8S, ADC_OFF, TIMER5_OFF, TIMER4_OFF, TIMER3_OFF, TIMER2_OFF, TIMER1_OFF, TIMER0_OFF, SPI_ON, USART3_OFF, USART2_OFF, USART1_OFF, USART0_OFF, TWI_OFF);
+    delay(8000);
 
 }

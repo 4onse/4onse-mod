@@ -45,7 +45,7 @@ bool syncRTC(ICom& com, RTC_DS1307 rtc) {
 bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
 {
 
-    int8_t tmp = 0;
+    uint8_t tmp = 0;
 
     if (current >= last){
         tmp = current - last;
@@ -70,4 +70,23 @@ bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
     // if ( tmp >= interval)
     //     return true;
     // return false;
+}
+
+bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t sendingMinutes)
+{
+    uint32_t nowSec = now.secondstime();
+    uint32_t lastSec = lastSend.secondstime();
+    uint32_t difference = nowSec - lastSec;
+    uint32_t sendSec = sendingMinutes * 60;
+
+    // Serial.println(difference);
+    // Serial.println(sendSec);
+
+    if (difference >= sendSec || (sendSec - difference) <= 8)
+    {
+        return true;
+    }
+
+    return false;
+
 }
