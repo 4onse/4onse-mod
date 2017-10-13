@@ -13,7 +13,7 @@ String getFormattedDate(DateTime dt)
 /**
  * Syncronize RTC
  */
-bool syncRTC(ICom& com, RTC_DS1307 rtc) {
+bool syncRTC(ICom& com, RTC_DS3231 rtc) {
 
     Serial.print(F("Sincronize RTC..."));
 
@@ -59,17 +59,6 @@ bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
         return true;
     return false;
 
-    // int8_t tmp = current - last;
-    //
-    // if (tmp < 0)
-    //   tmp += 60;
-    //
-    // Serial.print(F("TMP: "));
-    // Serial.println(tmp);
-    //
-    // if ( tmp >= interval)
-    //     return true;
-    // return false;
 }
 
 bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t sendingMinutes)
@@ -78,9 +67,6 @@ bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t 
     uint32_t lastSec = lastSend.secondstime();
     uint32_t difference = nowSec - lastSec;
     uint32_t sendSec = sendingMinutes * 60;
-
-    // Serial.println(difference);
-    // Serial.println(sendSec);
 
     if (difference >= sendSec || (sendSec - difference) <= 8)
     {

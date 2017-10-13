@@ -43,7 +43,7 @@
 #define ONE_WIRE_BUS 9
 #define SOIL_A_PIN A13
 
-// #define BME_I2C_ADDR 0x77
+// BME could be 0x76 or 0x77
 uint8_t BME_I2C_ADDR = 0x76;
 
 #define DHTPIN 10
@@ -55,7 +55,7 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define WDIR A0
 
 #define SAMPLING_TIME_MIN 1
-#define SENDING_TIME_MIN 5
+#define SENDING_TIME_MIN 15
 
 #define SF(x) String(F(x))
 
@@ -66,7 +66,7 @@ DHT dht(DHTPIN, DHTTYPE);
  ****************************************/
 BH1750 lightMeter;
 Adafruit_BME280 bme;
-RTC_DS1307 rtc;
+RTC_DS3231 rtc;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dstemp(&oneWire);
 
@@ -315,6 +315,7 @@ void setup() {
     lastRun = millis();
     lastSend = min; //millis();
     lastSendDate = now;
+    delay(2000);
 }
 
 /**
@@ -395,11 +396,9 @@ bool sendStatus = true;
 void sendData()
 {
     // String date = getFormattedDate(now);
-
-
     logMessage(SF("Sending data..."));
 
-    bool res = sos.sendDataTest();
+    bool res = sos.sendData();
 
     if (res)
     {
@@ -420,7 +419,6 @@ void sendData()
             count = 0;
         }
     }
-
 }
 
 void loop() {
@@ -429,11 +427,9 @@ void loop() {
     DateTime now = rtc.now();
     uint8_t min = now.minute();
 
-    // if((unsigned long)(millis() - lastRun) > SAMPLING_TIME)
-    if(calcInterval(min, lastMinute, SAMPLING_TIME_MIN) && min < 60)
+    if(calcInterval(min, lastMinute, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
     {
 
-        // lastRun = millis();
         lastMinute = min;
 
         getWeatherMeasure();
@@ -470,9 +466,11 @@ void loop() {
             }
             else
             {
-                now = rtc.now();
-
-                lastDay = now.day();
+                do
+                {
+                    now = rtc.now();
+                    lastDay = now.day();
+                } while (lastDay > 31);
 
                 Serial.println(F("RTC sync ok"));
             }
