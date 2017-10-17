@@ -28,6 +28,8 @@
 // #include <LowPower.h>
 #include "functions.h"
 
+#include <avr/power.h>
+
 /*****************************************
  * Configure params
  ****************************************/
@@ -59,12 +61,12 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define RAIN 2
 #define WDIR A0
 
-#define SAMPLING_TIME_MIN 1
+#define SAMPLING_TIME_MIN 5
 #define SENDING_TIME_MIN 15
 
 #define SF(x) String(F(x))
 
-#define MEDIAN_LENGTH 5
+#define MEDIAN_LENGTH SAMPLING_TIME_MIN
 
 DHT dht(DHTPIN, DHTTYPE);
 
@@ -94,16 +96,19 @@ float temp = 0.0;
 short soil = 0;
 float intTemp = 0.0;
 
+/******************************************
+ * Arrays to get the median values
+ *****************************************/
 RunningMedian medianTemp = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianHum = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianPres = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianSoil = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianLux = RunningMedian(MEDIAN_LENGTH);
 
-uint8_t medianCount = 0;
-
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
+uint8_t lastLogMin = 0;
+uint8_t lastMisMin = 0;
 DateTime lastSendDate;
 
 //These are all the weather values that wunderground expects:
@@ -115,22 +120,11 @@ float rain = 0.0;
 // char timezone[7];
 
 // wind and rain variable
-byte windClicks = 0;
+uint8_t windClicks = 0;
 volatile unsigned long lastWindCheck = 0;
 volatile long lastWindIRQ = 0;
 volatile unsigned long raintime, rainlast;
 // unsigned long lastRun, lastSend;
-uint8_t lastMinute;
-
-
-/******************************************
- * Function to monitor RAM usage
- *****************************************/
-/*int freeRam() {
-    extern int __heap_start, *__brkval;
-    int v;
-    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
-}*/
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // Hardware interrupt
@@ -241,10 +235,18 @@ void logMessage(const String message)
 }
 
 void setup() {
+
+    // disable unuset elements
+    power_spi_disable();
+    // power_usart3_disable();
         // init serial port
     Serial.begin(9600);
+    while(!Serial){}
     Serial1.begin(57200);
+    while(!Serial1){}
     Serial2.begin(9600);
+    while(!Serial2){}
+
     delay(3000);
 
     if (!rtc.begin())
@@ -324,11 +326,13 @@ void setup() {
     uint8_t min = now.minute();
 
     lastDay = now.day();
-    lastMinute = min;
+    lastMisMin = min;
+    lastLogMin = min;
 
     // lastRun = millis();
     // lastSend = min; //millis();
     lastSendDate = now;
+
     delay(2000);
 }
 
@@ -373,7 +377,7 @@ void getWeatherMeasure()
 
     intTemp = getInternalTemp();
 
-    rain = lastrain;
+    rain += lastrain;
 
     lastrain = 0;
 
@@ -395,14 +399,22 @@ String formatWeatherMeasure(const DateTime& now) {
     String message = getFormattedDate(now);
 
     message += "," + String(intTemp);
-    message += "," + String(soil);
-    message += "," + String(lux);
-    message += "," + String(pressure);
-    message += "," + String(humidity);
-    message += "," + String(temp);
+    message += "," + String(medianSoil.getMedian());
+    message += "," + String(medianLux.getMedian());
+    message += "," + String(medianPres.getMedian());
+    message += "," + String(medianHum.getMedian());
+    message += "," + String(medianTemp.getMedian());
     message += "," + String(rain);
     message += "," + String(winddir);
     message += "," + String(windspeedms);
+
+    medianTemp.clear();
+    medianHum.clear();
+    medianPres.clear();
+    medianSoil.clear();
+    medianLux.clear();
+
+    rain = 0;
 
     return message;
 
@@ -447,46 +459,26 @@ void loop() {
     DateTime now = rtc.now();
     uint8_t min = now.minute();
 
-    if(calcInterval(min, lastMinute, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
+    // check if it's time to read measures
+    if(calcInterval(min, lastMisMin, 1) && min < 60 && now.year() < 2060)
     {
 
-        lastMinute = min;
+        lastMisMin = min;
 
         getWeatherMeasure();
+        // Serial.println(F("Get measures"));
 
-
-        medianCount++;
-
-
-
-        String message = formatWeatherMeasure(now);
-        Serial.println(message);
-
-        if(medianCount == MEDIAN_LENGTH)
+        // check if it's time to log data
+        if(calcInterval(min, lastLogMin, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
         {
-            medianCount = 0;
-            Serial.print(F("Temperature median: "));
-            Serial.println(medianTemp.getMedian());
-            Serial.print(F("Humidity median: "));
-            Serial.println(medianHum.getMedian());
-            Serial.print(F("Pressure median: "));
-            Serial.println(medianPres.getMedian());
-            Serial.print(F("Soil median: "));
-            Serial.println(medianSoil.getMedian());
-            Serial.print(F("Light median: "));
-            Serial.println(medianLux.getMedian());
-            medianTemp.clear();
-            medianHum.clear();
-            medianPres.clear();
-            medianSoil.clear();
-            medianLux.clear();
-
+            String message = formatWeatherMeasure(now);
+            Serial.println(message);
+            sos.logData(message);
+            lastLogMin = now.minute();
         }
 
-        sos.logData(message);
 
-        // checkInternalTemp();
-
+        // check if it's time to send data
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
             Serial.println(F("Time to send data"));
@@ -496,7 +488,7 @@ void loop() {
             {
                 lastSendDate = now;
             }
-            delay(5000);
+            delay(1000);
         }
 
         // sync RTC every day
