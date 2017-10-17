@@ -20,15 +20,17 @@ this code is compatible only with the Arduino MEGA 2560.
 
 TODO
 
-### Configure the makefile
+### Build with makefile
+
+#### Configure the makefile
 
 Open the *Makefile* and set the ARDUINO_DIR
 
 ```
 BOARD_TAG   	= mega
 BOARD_SUB	  	= atmega2560
-USER_LIB_PATH 	= $(realpath ../lib)
-ARDUINO_DIR   	= /opt/arduino-1.8.3
+USER_LIB_PATH 	= $(realpath ../libraries)
+ARDUINO_DIR   	= /opt/arduino-1.8.4
 ARDUINO_LIBS  	= Wire SPI OneWire \
 				  Adafruit_BME280 Adafruit_Sensor \
 				  istsos LiquidCrystal  BH1750 \
@@ -37,24 +39,49 @@ ARDUINO_LIBS  	= Wire SPI OneWire \
 SERVER 			= '"geoservice.ist.supsi.ch"'
 URI 			= '"/4onse/wa/istsos/services/sos/operations/fastinsert"'
 PROCEDURE_ID 	= '"c264e6ba50cb11e79e2008002745029a"'
+BASIC_AUTH		= '"basic_auth_token"'
 
 APN				= '"gprs.swisscom.ch"'
 APNUSER			= '"gprs"'
 PASS			= '"gprs"'
+SIM_PIN			= '"1234"'
 
 
 include ../Arduino.mk
 ```
 
-### Build the code
+#### Build the code
 
 ```
 make
 ```
 
-
-### Upload the software
+#### Upload the software
 
 ```
 make upload
 ```
+
+### Build with arduino IDE  (WIP)
+
+Download and install the arduino IDE
+
+Open the arduino IDE -> Files -> Preferences, and set the Sketchbook location to the project root (Es):
+
+```
+/home/ist/workspace/4onse/4onse-ws/source/Arduino
+```
+
+Load the sketch *stationFull.ino* inside the folder stationFull, uncomment and set the following variable with the right value (around line 34):
+```
+#define SERVER "geoservice.ist.supsi.ch"
+#define URI "/4onse/wa/istsos/services/sos/operations/fastinsert"
+#define PROCEDURE_ID "175378da9a0511e79e2008002745029a"
+#define BASIC_AUTH "asdsadsadsad"
+
+#define APN "gprs.swisscom.ch"
+#define APNUSER "gprs"
+#define PASS "gprs"
+#define SIM_PIN "1234"
+```
+Compile and upload the code
