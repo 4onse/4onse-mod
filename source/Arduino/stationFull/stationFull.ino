@@ -21,6 +21,9 @@
 // internal temp
 #include <DHT.h>
 
+// Median
+#include <RunningMedian.h>
+
 // Power saving
 // #include <LowPower.h>
 #include "functions.h"
@@ -31,10 +34,12 @@
 // #define SERVER "geoservice.ist.supsi.ch"
 // #define URI "/4onse/wa/istsos/services/sos/operations/fastinsert"
 // #define PROCEDURE_ID "175378da9a0511e79e2008002745029a"
+// #define BASIC_AUTH "asdsadsadsad"
 //
 // #define APN "gprs.swisscom.ch"
 // #define APNUSER "gprs"
 // #define PASS "gprs"
+// #define SIM_PIN "1234"
 
 
 /*****************************************
@@ -59,6 +64,8 @@ uint8_t BME_I2C_ADDR = 0x76;
 
 #define SF(x) String(F(x))
 
+#define MEDIAN_LENGTH 5
+
 DHT dht(DHTPIN, DHTTYPE);
 
 /*****************************************
@@ -73,7 +80,7 @@ DallasTemperature dstemp(&oneWire);
 /*****************************************
  * Comunication and logging system
  ****************************************/
-Drok com = Drok(Serial1, APN, APNUSER, PASS, "YWRtaW46QlYzWGp2clA=", "", false);
+Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN, false);
 OpenLog sdLog = OpenLog(Serial2);
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
@@ -87,9 +94,17 @@ float temp = 0.0;
 short soil = 0;
 float intTemp = 0.0;
 
+RunningMedian medianTemp = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianHum = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianPres = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianSoil = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianLux = RunningMedian(MEDIAN_LENGTH);
+
+uint8_t medianCount = 0;
+
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
-DateTime lastSendDate ;
+DateTime lastSendDate;
 
 //These are all the weather values that wunderground expects:
 short winddir = 0; // [0-360 instantaneous wind direction]
@@ -104,7 +119,7 @@ byte windClicks = 0;
 volatile unsigned long lastWindCheck = 0;
 volatile long lastWindIRQ = 0;
 volatile unsigned long raintime, rainlast;
-unsigned long lastRun, lastSend;
+// unsigned long lastRun, lastSend;
 uint8_t lastMinute;
 
 
@@ -124,8 +139,7 @@ uint8_t lastMinute;
 /*
    Count rain gauge bucket tips as they occur
    ctivated by the magnet and reed switch in the rain gauge, attached to input D2
- */
-
+*/
 void rainIRQ()
 {
     // lastrain += 0.2; //0.011;
@@ -141,7 +155,7 @@ void rainIRQ()
 
 /*
    Activated by the magnet in the anemometer (2 ticks per rotation), attached to input D3
- */
+*/
 void wspeedIRQ()
 {
     if ((unsigned long) (millis() - lastWindIRQ) > 10)
@@ -299,7 +313,7 @@ void setup() {
 
     logMessage(SF("RTC sync success"));
 
-    checkInternalTemp();
+    // checkInternalTemp();
 
     logMessage(SF("start loop"));
 
@@ -312,8 +326,8 @@ void setup() {
     lastDay = now.day();
     lastMinute = min;
 
-    lastRun = millis();
-    lastSend = min; //millis();
+    // lastRun = millis();
+    // lastSend = min; //millis();
     lastSendDate = now;
     delay(2000);
 }
@@ -362,6 +376,12 @@ void getWeatherMeasure()
     rain = lastrain;
 
     lastrain = 0;
+
+    medianTemp.add(temp);
+    medianHum.add(humidity);
+    medianPres.add(pressure);
+    medianSoil.add(soil);
+    medianLux.add(lux);
 
 }
 
@@ -434,12 +454,38 @@ void loop() {
 
         getWeatherMeasure();
 
+
+        medianCount++;
+
+
+
         String message = formatWeatherMeasure(now);
         Serial.println(message);
 
+        if(medianCount == MEDIAN_LENGTH)
+        {
+            medianCount = 0;
+            Serial.print(F("Temperature median: "));
+            Serial.println(medianTemp.getMedian());
+            Serial.print(F("Humidity median: "));
+            Serial.println(medianHum.getMedian());
+            Serial.print(F("Pressure median: "));
+            Serial.println(medianPres.getMedian());
+            Serial.print(F("Soil median: "));
+            Serial.println(medianSoil.getMedian());
+            Serial.print(F("Light median: "));
+            Serial.println(medianLux.getMedian());
+            medianTemp.clear();
+            medianHum.clear();
+            medianPres.clear();
+            medianSoil.clear();
+            medianLux.clear();
+
+        }
+
         sos.logData(message);
 
-        checkInternalTemp();
+        // checkInternalTemp();
 
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
