@@ -5,7 +5,7 @@ String getFormattedDate(DateTime dt)
 {
     char sz[30];
     sprintf(sz, "%04d-%02d-%02dT%02d:%02d:%02d", dt.year(), dt.month(), dt.day(), dt.hour(), dt.minute(), dt.second());
-    delay(100);
+    delay(50);
     return String(sz) + String("+0000");
 }
 
@@ -13,8 +13,8 @@ String getFormattedDate(DateTime dt)
 /**
  * Syncronize RTC
  */
-bool syncRTC(ICom& com, RTC_DS3231 rtc) {
-
+bool syncRTC(ICom& com, RTC_DS3231 rtc)
+{
     Serial.print(F("Sincronize RTC..."));
 
     // this code is only for testing
@@ -35,7 +35,9 @@ bool syncRTC(ICom& com, RTC_DS3231 rtc) {
     com.disconnect();
 
     if (tmp >= 5)
+    {
         return false;
+    }
 
     rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
     Serial.println(F("done"));
@@ -47,16 +49,20 @@ bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
 
     uint8_t tmp = 0;
 
-    if (current >= last){
+    if (current >= last)
+    {
         tmp = current - last;
 
-    }else{
+    }else
+    {
         tmp = 60 - last;
         tmp += current;
     }
 
     if ( tmp >= interval)
+    {
         return true;
+    }
     return false;
 
 }

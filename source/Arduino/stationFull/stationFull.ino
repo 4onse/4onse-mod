@@ -1,4 +1,4 @@
-
+#define DEBUG
 // istsos comunication library (GPRS)
 #include <istsos.h>
 #include <com/drok.h>
@@ -30,18 +30,20 @@
 
 #include <avr/power.h>
 
+
+
 /*****************************************
  * Configure params
  ****************************************/
 // #define SERVER "geoservice.ist.supsi.ch"
 // #define URI "/4onse/wa/istsos/services/sos/operations/fastinsert"
 // #define PROCEDURE_ID "175378da9a0511e79e2008002745029a"
-// #define BASIC_AUTH "asdsadsadsad"
+// #define BASIC_AUTH "YWRtaW46QlYzWGp2clA="
 //
 // #define APN "gprs.swisscom.ch"
 // #define APNUSER "gprs"
 // #define PASS "gprs"
-// #define SIM_PIN "1234"
+// #define SIM_PIN ""
 
 
 /*****************************************
@@ -89,21 +91,23 @@ Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 /******************************************
  * Global variable definition
  *****************************************/
-uint16_t lux  = 0;
-float pressure = 0.0;
-float humidity = 0.0;
-float temp = 0.0;
-short soil = 0;
-float intTemp = 0.0;
+// uint16_t lux  = 0;
+// float pressure = 0.0;
+// float humidity = 0.0;
+// float temp = 0.0;
+// short soil = 0;
+// float intTemp = 0.0;
 
 /******************************************
  * Arrays to get the median values
  *****************************************/
-RunningMedian medianTemp = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianHum = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianPres = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianSoil = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianLux = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianTemp    = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianHum     = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianPres    = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianSoil    = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianLux     = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianIntTemp = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianWinDir  = RunningMedian(MEDIAN_LENGTH);
 
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
@@ -240,47 +244,63 @@ void setup() {
     power_spi_disable();
     // power_usart3_disable();
         // init serial port
+
     Serial.begin(9600);
     while(!Serial){}
     Serial1.begin(57200);
     while(!Serial1){}
     Serial2.begin(9600);
     while(!Serial2){}
-
     delay(3000);
+
 
     if (!rtc.begin())
     {
-        Serial.println(F("Couldn't find RTC"));
+        #ifdef DEBUG
+            Serial.println(F("Couldn't find RTC"));
+        #endif
         return;
     }
 
     sos.begin();
-    Serial.println(F("SOS ready"));
 
-    Serial.println(F("Init..."));
+    #ifdef DEBUG
+        Serial.println(F("SOS ready"));
+        Serial.println(F("Init..."));
+    #endif
 
     logMessage(SF("Start init process..."));
 
     // init sensors
     lightMeter.begin();
-    Serial.println(F("light ready"));
+
+    #ifdef DEBUG
+        Serial.println(F("light ready"));
+    #endif
+
     dht.begin();
-    Serial.println(F("DHT ready"));
+
+    #ifdef DEBUG
+        Serial.println(F("DHT ready"));
+    #endif
 
     if (!bme.begin(BME_I2C_ADDR))
     {
         BME_I2C_ADDR = 0x77;
         if(!bme.begin(BME_I2C_ADDR))
         {
-            Serial.println(F("BME280 sensor not found"));
+            #ifdef DEBUG
+                Serial.println(F("BME280 sensor not found"));
+            #endif
             logMessage(SF("BME280 sensor not found"));
-            delay(30000);
-            while (1) ;
+            delay(10000);
+            setup();
         }
 
     }
-    Serial.println(F("BME ready"));
+    #ifdef DEBUG
+        Serial.println(F("BME ready"));
+    #endif
 
 
 
@@ -300,10 +320,12 @@ void setup() {
     // turn on interrupts
     interrupts();
 
-    Serial.println(F("done"));
+    #ifdef DEBUG
+        Serial.println(F("done"));
+    #endif
 
     logMessage(SF("init process success"));
-    delay(5000);
+    delay(2000);
 
     bool flag = false;
 
@@ -319,7 +341,7 @@ void setup() {
 
     logMessage(SF("start loop"));
 
-    delay(5000);
+    delay(2000);
 
     DateTime now = rtc.now();
 
@@ -329,8 +351,6 @@ void setup() {
     lastMisMin = min;
     lastLogMin = min;
 
-    // lastRun = millis();
-    // lastSend = min; //millis();
     lastSendDate = now;
 
     delay(2000);
@@ -360,22 +380,22 @@ void getWeatherMeasure()
     lightMeter.configure(BH1750_ONE_TIME_HIGH_RES_MODE);
     delay(150);
 
-    lux = lightMeter.readLightLevel();
+    uint16_t lux = lightMeter.readLightLevel();
     // istsos max value = 9999
     if (lux >= 10000)
     {
         lux = 9999;
     }
 
-    pressure = bme.readPressure() / 100.0F;
-    humidity = bme.readHumidity();
-    temp = dstemp.getTempCByIndex(0);
-    soil = readSoil();
+    float pressure = bme.readPressure() / 100.0F;
+    float humidity = bme.readHumidity();
+    float temp = dstemp.getTempCByIndex(0);
+    uint8_t soil = readSoil();
 
     winddir = get_wind_direction();
     windspeedms = get_wind_speed();
 
-    intTemp = getInternalTemp();
+    float intTemp = getInternalTemp();
 
     rain += lastrain;
 
@@ -386,6 +406,8 @@ void getWeatherMeasure()
     medianPres.add(pressure);
     medianSoil.add(soil);
     medianLux.add(lux);
+    medianIntTemp.add(intTemp);
+    medianWinDir.add(winddir);
 
 }
 
@@ -398,14 +420,14 @@ String formatWeatherMeasure(const DateTime& now) {
 
     String message = getFormattedDate(now);
 
-    message += "," + String(intTemp);
+    message += "," + String(medianIntTemp.getMedian());
     message += "," + String(medianSoil.getMedian());
     message += "," + String(medianLux.getMedian());
     message += "," + String(medianPres.getMedian());
     message += "," + String(medianHum.getMedian());
     message += "," + String(medianTemp.getMedian());
     message += "," + String(rain);
-    message += "," + String(winddir);
+    message += "," + String(medianWinDir.getMedian());
     message += "," + String(windspeedms);
 
     medianTemp.clear();
@@ -413,6 +435,8 @@ String formatWeatherMeasure(const DateTime& now) {
     medianPres.clear();
     medianSoil.clear();
     medianLux.clear();
+    medianIntTemp.clear();
+    medianWinDir.clear();
 
     rain = 0;
 
@@ -481,7 +505,9 @@ void loop() {
         // check if it's time to send data
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
-            Serial.println(F("Time to send data"));
+            #ifdef DEBUG
+                Serial.println(F("Time to send data"));
+            #endif
             sendData();
 
             if (count == 0)
@@ -510,13 +536,13 @@ void loop() {
                     lastDay = now.day();
                 } while (lastDay > 31);
 
-                Serial.println(F("RTC sync ok"));
+                #ifdef DEBUG
+                    Serial.println(F("RTC sync ok"));
+                #endif
             }
         }
     }
     // back to sleep :)
-    // LowPower.powerDown(SLEEP_8S, ADC_ON, BOD_ON);
-    // LowPower.idle(SLEEP_8S, ADC_OFF, TIMER5_OFF, TIMER4_OFF, TIMER3_OFF, TIMER2_OFF, TIMER1_OFF, TIMER0_OFF, SPI_ON, USART3_OFF, USART2_OFF, USART1_OFF, USART0_OFF, TWI_OFF);
     delay(8000);
 
 }
