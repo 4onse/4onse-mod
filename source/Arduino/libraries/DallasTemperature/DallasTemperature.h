@@ -1,7 +1,7 @@
 #ifndef DallasTemperature_h
 #define DallasTemperature_h
 
-#define DALLASTEMPLIBVERSION "3.7.3"
+#define DALLASTEMPLIBVERSION "3.7.7" // To be deprecated
 
 // This library is free software; you can redistribute it and/or
 // modify it under the terms of the GNU Lesser General Public
@@ -26,32 +26,7 @@
 #define DS18B20MODEL 0x28
 #define DS1822MODEL  0x22
 #define DS1825MODEL  0x3B
-
-// OneWire commands
-#define STARTCONVO      0x44  // Tells device to take a temperature reading and put it on the scratchpad
-#define COPYSCRATCH     0x48  // Copy EEPROM
-#define READSCRATCH     0xBE  // Read EEPROM
-#define WRITESCRATCH    0x4E  // Write to EEPROM
-#define RECALLSCRATCH   0xB8  // Reload from last known
-#define READPOWERSUPPLY 0xB4  // Determine if device needs parasite power
-#define ALARMSEARCH     0xEC  // Query bus for devices with an alarm condition
-
-// Scratchpad locations
-#define TEMP_LSB        0
-#define TEMP_MSB        1
-#define HIGH_ALARM_TEMP 2
-#define LOW_ALARM_TEMP  3
-#define CONFIGURATION   4
-#define INTERNAL_BYTE   5
-#define COUNT_REMAIN    6
-#define COUNT_PER_C     7
-#define SCRATCHPAD_CRC  8
-
-// Device resolution
-#define TEMP_9_BIT  0x1F //  9 bit
-#define TEMP_10_BIT 0x3F // 10 bit
-#define TEMP_11_BIT 0x5F // 11 bit
-#define TEMP_12_BIT 0x7F // 12 bit
+#define DS28EA00MODEL 0x42
 
 // Error Codes
 #define DEVICE_DISCONNECTED_C -127
@@ -110,7 +85,7 @@ public:
     uint8_t getResolution(const uint8_t*);
 
     // set resolution of a device to 9, 10, 11, or 12 bits
-    bool setResolution(const uint8_t*, uint8_t);
+    bool setResolution(const uint8_t*, uint8_t, bool skipGlobalBitResolutionCalculation = false);
 
     // sets/gets the waitForConversion flag
     void setWaitForConversion(bool);
@@ -147,7 +122,10 @@ public:
     // returns true if the bus requires parasite power
     bool isParasitePowerMode(void);
 
-    bool isConversionAvailable(const uint8_t*);
+     // Is a conversion complete on the wire?
+    bool isConversionComplete(void);
+
+    int16_t millisToWaitForConversion(uint8_t);
 
 #if REQUIRESALARMS
 
@@ -249,9 +227,7 @@ private:
     // reads scratchpad and returns the raw temperature
     int16_t calculateTemperature(const uint8_t*, uint8_t*);
 
-    int16_t millisToWaitForConversion(uint8_t);
-
-    void	blockTillConversionComplete(uint8_t, const uint8_t*);
+    void	blockTillConversionComplete(uint8_t);
 
 #if REQUIRESALARMS
 

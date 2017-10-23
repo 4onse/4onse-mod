@@ -39,6 +39,13 @@ void loop()
 
     Serial.println("Start comunication");
 
+
+    // sendCommand("AT+GCAP\r\n");
+    // sendCommand("AT+GMI\r\n");
+    // sendCommand("AT+GMM\r\n");
+    sendCommand("AT+GMR\r\n");
+    sendCommand("AT+CMEE=1\r\n");
+
     // init
     sendCommand("AT+CFUN=0\r\n");
     sendCommand("AT+CFUN=1,1\r\n");
