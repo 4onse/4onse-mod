@@ -1,3 +1,23 @@
+// =========================================================================
+//
+// Copyright (C) 2012-2017, Istituto Scienze della Terra
+//
+// This program is free software; you can redistribute it and/or modify it
+// under the terms of the GNU General Public License as published by the
+// Free Software Foundation; either version 2 of the License, or (at your
+// option) any later version.
+//
+// This program is distributed in the hope that it will be useful, but
+// WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+// General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+//
+// =========================================================================
+
 #define DEBUG
 // istsos comunication library (GPRS)
 #include <istsos.h>
@@ -14,22 +34,18 @@
 
 // light
 #include <BH1750.h>
-
 // RTC
 #include <RTClib.h>
-
 // internal temp
 #include <DHT.h>
-
 // Median
 #include <RunningMedian.h>
 
 // Power saving
-// #include <LowPower.h>
-#include "functions.h"
-
 #include <avr/power.h>
-
+// #include <LowPower.h>
+// Include function library
+#include "functions.h"
 
 
 /*****************************************
@@ -89,14 +105,15 @@ OpenLog sdLog = OpenLog(Serial2);
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
 /******************************************
- * Global variable definition
+ * Global variable FOR INTERRUPTS
  *****************************************/
-// uint16_t lux  = 0;
-// float pressure = 0.0;
-// float humidity = 0.0;
-// float temp = 0.0;
-// short soil = 0;
-// float intTemp = 0.0;
+
+volatile float lastrain = 0;
+float rain = 0.0;
+uint8_t windClicks = 0;
+volatile unsigned long lastWindCheck = 0;
+volatile unsigned long lastWindIRQ = 0;
+volatile unsigned long raintime, rainlast;
 
 /******************************************
  * Arrays to get the median values
@@ -108,40 +125,26 @@ RunningMedian medianSoil    = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianLux     = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianIntTemp = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianWinDir  = RunningMedian(MEDIAN_LENGTH);
+RunningMedian medianWinSp   = RunningMedian(MEDIAN_LENGTH);
 
+// Variable to manage data log a nd data send
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
 uint8_t lastLogMin = 0;
 uint8_t lastMisMin = 0;
 DateTime lastSendDate;
 
-//These are all the weather values that wunderground expects:
-short winddir = 0; // [0-360 instantaneous wind direction]
-float windspeedms = 0; // [m/s instantaneous wind speed]
-volatile float lastrain = 0;
-float rain = 0.0;
-
-// char timezone[7];
-
-// wind and rain variable
-uint8_t windClicks = 0;
-volatile unsigned long lastWindCheck = 0;
-volatile long lastWindIRQ = 0;
-volatile unsigned long raintime, rainlast;
-// unsigned long lastRun, lastSend;
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // Hardware interrupt
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
 /*
-   Count rain gauge bucket tips as they occur
-   ctivated by the magnet and reed switch in the rain gauge, attached to input D2
+*  Count rain gauge bucket tips as they occur
+*  activated by the magnet and reed switch in the rain gauge, attached to input D2
 */
 void rainIRQ()
 {
-    // lastrain += 0.2; //0.011;
-    // return;
     raintime = millis(); // grab current time
 
     if ((unsigned long)(millis() - rainlast) > 10) // ignore switch-bounce glitches less than 10mS after initial edge
@@ -152,7 +155,7 @@ void rainIRQ()
 }
 
 /*
-   Activated by the magnet in the anemometer (2 ticks per rotation), attached to input D3
+*   Activated by the magnet in the anemometer (2 ticks per rotation), attached to input D3
 */
 void wspeedIRQ()
 {
@@ -231,7 +234,10 @@ void checkInternalTemp()
     // }
 }
 
-
+/**
+*   Log message inside SD
+*   @param message
+*/
 void logMessage(const String message)
 {
     String date = getFormattedDate(rtc.now());
@@ -242,9 +248,8 @@ void setup() {
 
     // disable unuset elements
     power_spi_disable();
-    // power_usart3_disable();
-        // init serial port
 
+    // init serial port
     Serial.begin(9600);
     while(!Serial){}
     Serial1.begin(57200);
@@ -298,11 +303,10 @@ void setup() {
         }
 
     }
+
     #ifdef DEBUG
         Serial.println(F("BME ready"));
     #endif
-
-
 
     pinMode(WSPEED, INPUT_PULLUP);
     pinMode(RAIN, INPUT_PULLUP);
@@ -392,10 +396,10 @@ void getWeatherMeasure()
     float temp = dstemp.getTempCByIndex(0);
     uint8_t soil = readSoil();
 
-    winddir = get_wind_direction();
-    windspeedms = get_wind_speed();
+    int winddir = get_wind_direction();
+    float windspeedms = get_wind_speed();
 
-    float intTemp = getInternalTemp();
+    float intTemp = dht.readTemperature();
 
     rain += lastrain;
 
@@ -408,7 +412,7 @@ void getWeatherMeasure()
     medianLux.add(lux);
     medianIntTemp.add(intTemp);
     medianWinDir.add(winddir);
-
+    medianWinSp.add(windspeedms);
 }
 
 /**
@@ -428,7 +432,7 @@ String formatWeatherMeasure(const DateTime& now) {
     message += "," + String(medianTemp.getMedian());
     message += "," + String(rain);
     message += "," + String(medianWinDir.getMedian());
-    message += "," + String(windspeedms);
+    message += "," + String(medianWinSp.getMedian());
 
     medianTemp.clear();
     medianHum.clear();
@@ -437,6 +441,7 @@ String formatWeatherMeasure(const DateTime& now) {
     medianLux.clear();
     medianIntTemp.clear();
     medianWinDir.clear();
+    medianWinSp.clear();
 
     rain = 0;
 
