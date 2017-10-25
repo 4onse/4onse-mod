@@ -113,7 +113,7 @@ float rain = 0.0;
 uint8_t windClicks = 0;
 volatile unsigned long lastWindCheck = 0;
 volatile unsigned long lastWindIRQ = 0;
-volatile unsigned long raintime, rainlast;
+volatile unsigned long rainlast;
 
 /******************************************
  * Arrays to get the median values
@@ -127,7 +127,7 @@ RunningMedian medianIntTemp = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianWinDir  = RunningMedian(MEDIAN_LENGTH);
 RunningMedian medianWinSp   = RunningMedian(MEDIAN_LENGTH);
 
-// Variable to manage data log a nd data send
+// Variable to manage data log and data send
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
 uint8_t lastLogMin = 0;
@@ -145,12 +145,10 @@ DateTime lastSendDate;
 */
 void rainIRQ()
 {
-    raintime = millis(); // grab current time
-
     if ((unsigned long)(millis() - rainlast) > 10) // ignore switch-bounce glitches less than 10mS after initial edge
     {
         lastrain += 0.2; //0.011;
-        rainlast = millis(); // raintime; // set up for next event
+        rainlast = millis(); // set up for next event
     }
 }
 
