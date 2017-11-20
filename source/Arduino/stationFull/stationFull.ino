@@ -22,7 +22,7 @@
 // istsos comunication library (GPRS)
 #include <istsos.h>
 #include <com/drok.h>
-#include <log/sdOpenlog.h>
+#include <log/sdIstsos.h>
 
 // temperature
 #include <OneWire.h>
