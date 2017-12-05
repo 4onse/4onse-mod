@@ -250,9 +250,6 @@ void setup() {
     countSend = 0;
     sendStatus = true;
 
-    Serial.println("Test empty Median");
-    Serial.println(medianTemp.getAverage());
-
 
     if (!rtc.begin())
     {
@@ -467,19 +464,13 @@ void medianLastMin()
     checkVar(SampMedianHum, medianHum, 10.0);
     checkVar(SampMedianPres, medianPres, 0.5);
 
-    // SampMedianTemp.add(medianTemp.getAverage());
-    // SampMedianHum.add(medianHum.getAverage());
     SampMedianLux.add(medianLux.getAverage());
-    // SampMedianPres.add(medianPres.getAverage());
     SampMedianIntTemp.add(medianIntTemp.getAverage());
     SampMedianSoil.add(medianSoil.getAverage());
     SampMedianWinDir.add(medianWinDir.getAverage());
     SampMedianWinSp.add(medianWinSp.getAverage());
 
-    // medianTemp.clear();
-    // medianHum.clear();
     medianLux.clear();
-    medianPres.clear();
     medianIntTemp.clear();
     medianSoil.clear();
     medianWinSp.clear();
@@ -496,8 +487,6 @@ void loop() {
     if(calcSamplingTime(now, lastSamplingDate, 10))
     {
         getWeatherMeasure();
-
-        Serial.println(F("Read Measures"));
         lastSamplingDate = now;
     }
 
@@ -517,6 +506,8 @@ void loop() {
         Serial.print(F("    "));
         Serial.println(message);
         lastLogDate = now;
+
+        sos.logData(message);
 
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {

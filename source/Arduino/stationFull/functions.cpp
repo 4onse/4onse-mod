@@ -18,7 +18,7 @@ bool syncRTC(ICom& com, RTC_DS3231 rtc)
     Serial.print(F("Sincronize RTC..."));
 
     // this code is only for testing
-    rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 12, (uint8_t) 1, (uint8_t) 15, (uint8_t) 30, (uint8_t) 00));
+    rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 12, (uint8_t) 5, (uint8_t) 17, (uint8_t) 00, (uint8_t) 00));
     return true;
 
     uint8_t tmp = 0;
@@ -46,13 +46,10 @@ bool syncRTC(ICom& com, RTC_DS3231 rtc)
 
 bool sendData(const Istsos& sos)
 {
-    Serial.println("sos");
-
     bool res = sos.sendDataTester();
 
     if (res)
     {
-        Serial.println(F("data send"));
         sendStatus = true;
         countSend = 0;
         return true;
@@ -62,19 +59,12 @@ bool sendData(const Istsos& sos)
     sendStatus = false;
     if (countSend >= 3)
     {
-
-        Serial.println(F("problem sending data"));
         sendStatus = true;
         countSend = 0;
         return true;
     }
 
     return false;
-}
-
-void sendData()
-{
-
 }
 
 bool calcInterval(uint8_t current, uint8_t last, uint32_t interval)
@@ -156,7 +146,7 @@ float getLastValue(const RunningMedian& median)
     uint8_t size = median.getCount();
     if (size != 0)
     {
-        return median.getElement(size -1);
+        return median.getElement(size - 1);
     }
 }
 
@@ -164,7 +154,7 @@ void checkMinVar(RunningMedian& median, float value, float variance)
 {
     if(median.getCount() != 0)
     {
-        float lastVal = getLastValue(median); //  SampMedianTemp.getElement(SampMedianTemp.getCount() - 1);
+        float lastVal = getLastValue(median);
         if(fabs(lastVal - value) <= variance)
         {
             median.add(value);
@@ -181,7 +171,7 @@ void checkVar(RunningMedian& big, RunningMedian& minute, float variance)
 {
     if(big.getCount() != 0)
     {
-        float lastVal = getLastValue(big); //  SampMedianTemp.getElement(SampMedianTemp.getCount() - 1);
+        float lastVal = getLastValue(big);
         if(fabs(lastVal - minute.getAverage()) <= variance)
         {
             big.add(minute.getAverage());
