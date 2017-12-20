@@ -12,8 +12,8 @@ extern uint8_t countSend;
 extern bool sendStatus;
 
 
-String getFormattedDate(DateTime dt);
-bool syncRTC(ICom& com, RTC_DS3231 rtc);
+String getFormattedDate(const DateTime dt);
+bool syncRTC(const ICom& com, const RTC_DS3231 rtc);
 bool sendData(const Istsos& sos);
 bool calcInterval(uint8_t current, uint8_t last, uint32_t interval);
 bool calcLogInterval(const DateTime& current, const DateTime& last, uint8_t interval);

@@ -1,7 +1,7 @@
 
 #include "functions.h"
 
-String getFormattedDate(DateTime dt)
+String getFormattedDate(const DateTime dt)
 {
     char sz[30];
     sprintf(sz, "%04d-%02d-%02dT%02d:%02d:%02d", dt.year(), dt.month(), dt.day(), dt.hour(), dt.minute(), dt.second());
@@ -13,13 +13,13 @@ String getFormattedDate(DateTime dt)
 /**
  * Syncronize RTC
  */
-bool syncRTC(ICom& com, RTC_DS3231 rtc)
+bool syncRTC(const ICom& com, const RTC_DS3231 rtc)
 {
     Serial.print(F("Sincronize RTC..."));
 
     // this code is only for testing
-    rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 12, (uint8_t) 5, (uint8_t) 17, (uint8_t) 00, (uint8_t) 00));
-    return true;
+    // rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 12, (uint8_t) 12, (uint8_t) 8, (uint8_t) 49, (uint8_t) 00));
+    // return true;
 
     uint8_t tmp = 0;
     uint32_t* result = com.ntpUpdate("metasntp11.admin.ch", 0);
@@ -46,7 +46,7 @@ bool syncRTC(ICom& com, RTC_DS3231 rtc)
 
 bool sendData(const Istsos& sos)
 {
-    bool res = sos.sendDataTester();
+    bool res = sos.sendData();
 
     if (res)
     {
@@ -152,6 +152,11 @@ float getLastValue(const RunningMedian& median)
 
 void checkMinVar(RunningMedian& median, float value, float variance)
 {
+    if (isnan(value))
+    {
+        return;
+    }
+
     if(median.getCount() != 0)
     {
         float lastVal = getLastValue(median);
@@ -169,6 +174,14 @@ void checkMinVar(RunningMedian& median, float value, float variance)
 
 void checkVar(RunningMedian& big, RunningMedian& minute, float variance)
 {
+
+    float value = minute.getAverage();
+
+    if (isnan(value))
+    {
+        return;
+    }
+
     if(big.getCount() != 0)
     {
         float lastVal = getLastValue(big);

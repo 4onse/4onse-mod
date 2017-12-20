@@ -21,7 +21,8 @@
 #define DEBUG
 // istsos comunication library (GPRS)
 #include <istsos.h>
-#include <com/drok.h>
+// #include <com/drok.h>
+#include <com/sim800.h>
 #include <log/sdOpenlog.h>
 
 // temperature
@@ -101,7 +102,8 @@ DallasTemperature dstemp(&oneWire);
 /*****************************************
  * Comunication and logging system
  ****************************************/
-Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
+// Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
+Sim800 com = Sim800(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
 OpenLog sdLog = OpenLog(Serial2);
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
@@ -125,6 +127,7 @@ RunningMedian medianPres    = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianSoil    = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianLux     = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianIntTemp = RunningMedian(SAMPLING_TIME_MED);
+RunningMedian medianIntHum  = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianWinDir  = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianWinSp   = RunningMedian(SAMPLING_TIME_MED);
 
@@ -137,6 +140,7 @@ RunningMedian SampMedianPres    = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianSoil    = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianLux     = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianIntTemp = RunningMedian(SAMPLING_TIME_MEDIAN);
+RunningMedian SampMedianIntHum  = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianWinDir  = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianWinSp   = RunningMedian(SAMPLING_TIME_MEDIAN);
 
@@ -230,7 +234,12 @@ short get_wind_direction()
 */
 void logMessage(const String message)
 {
+    String date = getFormattedDate(rtc.now());
+    // sos.logging(date, message);
+
+    Serial.print(date + " : ");
     Serial.println(message);
+
 }
 
 void setup() {
@@ -241,8 +250,8 @@ void setup() {
     // init serial port
     Serial.begin(9600);
     while(!Serial){}
-    // Serial1.begin(57200);
-    // while(!Serial1){}
+    Serial1.begin(57200);
+    while(!Serial1){}
     Serial2.begin(9600);
     while(!Serial2){}
     delay(3000);
@@ -250,14 +259,15 @@ void setup() {
     countSend = 0;
     sendStatus = true;
 
-
-    if (!rtc.begin())
+    while (!rtc.begin())
     {
         #ifdef DEBUG
             Serial.println(F("Couldn't find RTC"));
         #endif
-        return;
+        delay(1000);
     }
+
+    rtc.writeSqwPinMode(DS3231_OFF);
 
     sos.begin();
 
@@ -266,7 +276,7 @@ void setup() {
         Serial.println(F("Init..."));
     #endif
 
-    logMessage(SF("Start init process..."));
+    // logMessage(SF("Start init process..."));
 
     // init sensors
     lightMeter.begin();
@@ -331,10 +341,8 @@ void setup() {
         flag = syncRTC(com, rtc);
     }
 
-    logMessage(SF("RTC sync success"));
-
-    // checkInternalTemp();
-
+    Serial.println(F("RTC sync success"));
+    //
     logMessage(SF("start loop"));
 
     delay(2000);
@@ -393,6 +401,7 @@ void getWeatherMeasure()
     float windspeedms = get_wind_speed();
 
     float intTemp = dht.readTemperature();
+    float intHum = dht.readHumidity();
 
     rain += lastrain;
 
@@ -400,25 +409,34 @@ void getWeatherMeasure()
 
     if(temp >= -80.0 && temp <= 60.0)
     {
-        checkMinVar(medianTemp, temp, 2.0);  // medianTemp.add(temp);
+        checkMinVar(medianTemp, temp, 2.0);
     }
-
-    if(humidity >= 0 && humidity <= 100)
+    if(humidity >= 0.0 && humidity <= 100.0)
     {
-        checkMinVar(medianHum, humidity, 5.0);  // checmedianHum.add(humidity);
+        checkMinVar(medianHum, humidity, 5.0);
     }
-
-    if(pressure >= 500 && pressure <= 1100)
+    if(pressure >= 500.0 && pressure <= 1100.0)
     {
-        checkMinVar(medianPres, pressure, 0.3); // medianPres.add(pressure);
+        checkMinVar(medianPres, pressure, 0.3);
     }
-    if(lux >= 0 && lux <= 100000)
+    if(lux >= 0.0 && lux <= 100000)
     {
         medianLux.add(lux);
     }
+    if(soil >= 0.0 && soil <= 100.0)
+    {
+        medianSoil.add(soil);
+    }
 
-    medianSoil.add(soil);
-    medianIntTemp.add(intTemp);
+    if(intTemp >= -60.0 && intTemp <= 100.0)
+    {
+        medianIntTemp.add(intTemp);
+    }
+    if(intHum >= 0.0 && intHum <= 100.0)
+    {
+        medianIntHum.add(intHum);
+    }
+
     medianWinDir.add(winddir);
     medianWinSp.add(windspeedms);
 }
@@ -441,6 +459,7 @@ String formatWeatherMeasure(const DateTime& now) {
     message += "," + String(rain);
     message += "," + String(SampMedianWinDir.getAverage());
     message += "," + String(SampMedianWinSp.getAverage());
+    message += "," + String(SampMedianIntHum.getAverage());
 
     SampMedianTemp.clear();
     SampMedianHum.clear();
@@ -448,6 +467,7 @@ String formatWeatherMeasure(const DateTime& now) {
     SampMedianSoil.clear();
     SampMedianLux.clear();
     SampMedianIntTemp.clear();
+    SampMedianIntHum.clear();
     SampMedianWinDir.clear();
     SampMedianWinSp.clear();
 
@@ -466,12 +486,14 @@ void medianLastMin()
 
     SampMedianLux.add(medianLux.getAverage());
     SampMedianIntTemp.add(medianIntTemp.getAverage());
+    SampMedianIntHum.add(medianIntHum.getAverage());
     SampMedianSoil.add(medianSoil.getAverage());
     SampMedianWinDir.add(medianWinDir.getAverage());
     SampMedianWinSp.add(medianWinSp.getAverage());
 
     medianLux.clear();
     medianIntTemp.clear();
+    medianIntHum.clear();
     medianSoil.clear();
     medianWinSp.clear();
     medianWinDir.clear();
@@ -483,7 +505,6 @@ void loop() {
     DateTime now = rtc.now();
     uint8_t min = now.minute();
 
-
     if(calcSamplingTime(now, lastSamplingDate, 10))
     {
         getWeatherMeasure();
@@ -494,16 +515,14 @@ void loop() {
     if(calcInterval(min, lastMisMin, 1) && min < 60 && now.year() < 2060)
     {
         lastMisMin = min;
-        Serial.println(F("  Last min average"));
         medianLastMin();
     }
 
     if(calcLogInterval(now, lastLogDate, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
     {
-        Serial.println(F("    time to log measures"));
+        Serial.println(F("time to log measures"));
 
         String message = formatWeatherMeasure(now);
-        Serial.print(F("    "));
         Serial.println(message);
         lastLogDate = now;
 
@@ -511,75 +530,42 @@ void loop() {
 
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
-            Serial.print(F("    Sending data: "));
+            Serial.print(F(" Sending data: "));
             bool res = sendData(sos);
             Serial.println(res);
             lastSendDate = now;
         }
+
+        uint8_t dayNow = now.day();
+        // dayNow < 32 avoid rtc bad read
+        if( dayNow != lastDay && sendStatus && dayNow < 32)
+        {
+            bool flag = syncRTC(com, rtc);
+
+            if(!flag)
+            {
+                #ifdef DEBUG
+                    Serial.println(F("Problem sync RTC..."));
+                #endif
+                logMessage(SF("Problem sync RTC..."));
+            }
+            else
+            {
+                do
+                {
+                    now = rtc.now();
+                    lastDay = now.day();
+                } while (lastDay > 31);
+
+                #ifdef DEBUG
+                    Serial.println(F("RTC sync ok"));
+                #endif
+                logMessage(SF("RTC sync ok"));
+            }
+        }
+
     }
     // back to sleep :)
-    delay(4900);
-
-    // check if it's time to read measures
-    // if(calcInterval(min, lastMisMin, 1) && min < 60 && now.year() < 2060)
-    // {
-    //
-    //     lastMisMin = min;
-    //
-    //     getWeatherMeasure();
-    //     Serial.println(F("Get measures"));
-    //
-    //     // check if it's time to log data
-    //     if(calcInterval(min, lastLogMin, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
-    //     {
-    //         String message = formatWeatherMeasure(now);
-    //         Serial.println(message);
-    //         // sos.logData(message);
-    //         lastLogMin = now.minute();
-    //     }
-    //
-    //
-    //     // check if it's time to send data
-    //     if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
-    //     {
-    //         #ifdef DEBUG
-    //             Serial.println(F("Time to send data"));
-    //         #endif
-    //
-    //         // sendData();
-    //
-    //         if (countSend == 0)
-    //         {
-    //             lastSendDate = now;
-    //         }
-    //         delay(1000);
-    //     }
-    //
-    //     // sync RTC every day
-    //     uint8_t dayNow = now.day();
-    //     // dayNow < 32 avoid rtc bad read
-    //     if( dayNow != lastDay && sendStatus && dayNow < 32)
-    //     {
-    //         bool flag = syncRTC(com, rtc);
-    //
-    //         if(!flag)
-    //         {
-    //             Serial.println(F("Problem sync RTC..."));
-    //         }
-    //         else
-    //         {
-    //             do
-    //             {
-    //                 now = rtc.now();
-    //                 lastDay = now.day();
-    //             } while (lastDay > 31);
-    //
-    //             #ifdef DEBUG
-    //                 Serial.println(F("RTC sync ok"));
-    //             #endif
-    //         }
-    //     }
-    // }
-
+    delay(4000);
 
 }

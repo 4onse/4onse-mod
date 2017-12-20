@@ -9,7 +9,7 @@ ARDUINO_LIBS  	= Wire SPI OneWire \
 
 SERVER 			= '"geoservice.ist.supsi.ch"'
 URI 			= '"/4onse/wa/istsos/services/sos/operations/fastinsert"'
-PROCEDURE_ID 	= '"175378da9a0511e79e2008002745029a"'
+PROCEDURE_ID 	= '"1ee64d2ae56411e7a93608002745029a"'
 BASIC_AUTH		= '"YWRtaW46QlYzWGp2clA="'
 
 APN				= '"gprs.swisscom.ch"'
