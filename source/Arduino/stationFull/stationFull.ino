@@ -69,8 +69,6 @@
 #define ONE_WIRE_BUS 9
 #define SOIL_A_PIN A13
 
-// BME could be 0x76 or 0x77
-uint8_t BME_I2C_ADDR = 0x76;
 
 #define DHTPIN 10
 #define DHTTYPE DHT11
@@ -80,19 +78,29 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define RAIN 2
 #define WDIR A0
 
-#define SAMPLING_TIME_MIN 5
-#define SENDING_TIME_MIN 15
+// BME could be 0x76 or 0x77
+uint8_t BME_I2C_ADDR = 0x76;
 
+// magic
 #define SF(x) String(F(x))
 
-#define SAMPLING_TIME_MED 6
-#define SAMPLING_TIME_MEDIAN 10
+/*****************************************
+ * Define time intervals
+ ****************************************/
 
-DHT dht(DHTPIN, DHTTYPE);
+#define SAMPLING_TIME_MIN 5     ///< Sampling logging time (minutes)
+#define SENDING_TIME_MIN 15     ///< Sending time (minutes)
+
+// how many measures every minutes
+#define SAMPLING_TIME_MED 6
+//
+#define SAMPLING_TIME_MEDIAN SAMPLING_TIME_MIN
+
 
 /*****************************************
  * Sensors definition
  ****************************************/
+DHT dht(DHTPIN, DHTTYPE);
 BH1750 lightMeter;
 Adafruit_BME280 bme;
 RTC_DS3231 rtc;
@@ -160,7 +168,7 @@ bool sendStatus = true;
 // Hardware interrupt
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-/*
+/**
 *  Count rain gauge bucket tips as they occur
 *  activated by the magnet and reed switch in the rain gauge, attached to input D2
 */
@@ -173,7 +181,7 @@ void rainIRQ()
     }
 }
 
-/*
+/**
 *   Activated by the magnet in the anemometer (2 ticks per rotation), attached to input D3
 */
 void wspeedIRQ()
@@ -206,7 +214,7 @@ float get_wind_speed()
 
     return (windSpeed);
 }
-/*
+/**
    Read the wind direction sensor, return heading in degrees
  */
 short get_wind_direction()
@@ -235,13 +243,16 @@ short get_wind_direction()
 void logMessage(const String message)
 {
     String date = getFormattedDate(rtc.now());
-    // sos.logging(date, message);
+    sos.logging(date, message);
 
     Serial.print(date + " : ");
     Serial.println(message);
 
 }
 
+/**
+    Initialization
+*/
 void setup() {
 
     // disable unuset elements
@@ -256,9 +267,11 @@ void setup() {
     while(!Serial2){}
     delay(3000);
 
+    // this variables are used in function.cpp
     countSend = 0;
     sendStatus = true;
 
+    // check rtc
     while (!rtc.begin())
     {
         #ifdef DEBUG
@@ -267,7 +280,7 @@ void setup() {
         delay(1000);
     }
 
-    rtc.writeSqwPinMode(DS3231_OFF);
+    logMessage(SF("Start init process..."));
 
     sos.begin();
 
@@ -275,8 +288,6 @@ void setup() {
         Serial.println(F("SOS ready"));
         Serial.println(F("Init..."));
     #endif
-
-    // logMessage(SF("Start init process..."));
 
     // init sensors
     lightMeter.begin();
@@ -310,11 +321,9 @@ void setup() {
         Serial.println(F("BME ready"));
     #endif
 
+    // set pin mode
     pinMode(WSPEED, INPUT_PULLUP);
     pinMode(RAIN, INPUT_PULLUP);
-    pinMode(FAN_PIN, OUTPUT);
-    digitalWrite(FAN_PIN, HIGH);
-    // set pin mode
     pinMode(SOIL_A_PIN, INPUT);
 
     // attach external interrupt pins to IRQ functions (rain and wind speed)
@@ -342,10 +351,7 @@ void setup() {
     }
 
     Serial.println(F("RTC sync success"));
-    //
     logMessage(SF("start loop"));
-
-    delay(2000);
 
     DateTime now = rtc.now();
 
@@ -375,7 +381,7 @@ short readSoil()
 
 /**
  *
- * Read mesure from sensrs
+ * Read mesure from sensors and check data quality
  *
  */
 void getWeatherMeasure()
@@ -430,11 +436,13 @@ void getWeatherMeasure()
 
     if(intTemp >= -60.0 && intTemp <= 100.0)
     {
-        medianIntTemp.add(intTemp);
+        checkMinVar(medianIntTemp, intTemp, 3.0);
+        // medianIntTemp.add(intTemp);
     }
     if(intHum >= 0.0 && intHum <= 100.0)
     {
-        medianIntHum.add(intHum);
+        checkMinVar(medianIntHum, intHum, 10.0);
+        // medianIntHum.add(intHum);
     }
 
     medianWinDir.add(winddir);
@@ -448,8 +456,10 @@ void getWeatherMeasure()
  */
 String formatWeatherMeasure(const DateTime& now) {
 
+    // get current date
     String message = getFormattedDate(now);
 
+    // concat measures
     message += "," + String(SampMedianIntTemp.getAverage());
     message += "," + String(SampMedianSoil.getAverage());
     message += "," + String(SampMedianLux.getAverage());
@@ -461,6 +471,7 @@ String formatWeatherMeasure(const DateTime& now) {
     message += "," + String(SampMedianWinSp.getAverage());
     message += "," + String(SampMedianIntHum.getAverage());
 
+    // empty median arrays
     SampMedianTemp.clear();
     SampMedianHum.clear();
     SampMedianPres.clear();
@@ -477,6 +488,9 @@ String formatWeatherMeasure(const DateTime& now) {
 
 }
 
+/**
+ * Every minute
+*/
 void medianLastMin()
 {
 
@@ -484,16 +498,15 @@ void medianLastMin()
     checkVar(SampMedianHum, medianHum, 10.0);
     checkVar(SampMedianPres, medianPres, 0.5);
 
+    checkVar(SampMedianIntTemp, medianIntTemp, 5.0);
+    checkVar(SampMedianIntHum, medianIntHum, 20.0);
+
     SampMedianLux.add(medianLux.getAverage());
-    SampMedianIntTemp.add(medianIntTemp.getAverage());
-    SampMedianIntHum.add(medianIntHum.getAverage());
     SampMedianSoil.add(medianSoil.getAverage());
     SampMedianWinDir.add(medianWinDir.getAverage());
     SampMedianWinSp.add(medianWinSp.getAverage());
 
     medianLux.clear();
-    medianIntTemp.clear();
-    medianIntHum.clear();
     medianSoil.clear();
     medianWinSp.clear();
     medianWinDir.clear();
@@ -534,6 +547,15 @@ void loop() {
             bool res = sendData(sos);
             Serial.println(res);
             lastSendDate = now;
+
+            if(res)
+            {
+                logMessage(SF("Sending data success"));
+            }
+            else
+            {
+                logMessage(SF("Sending data failure"));
+            }
         }
 
         uint8_t dayNow = now.day();
@@ -547,7 +569,7 @@ void loop() {
                 #ifdef DEBUG
                     Serial.println(F("Problem sync RTC..."));
                 #endif
-                logMessage(SF("Problem sync RTC..."));
+                logMessage(SF("Problem RTC sync"));
             }
             else
             {

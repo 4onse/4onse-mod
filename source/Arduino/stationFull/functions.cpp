@@ -1,4 +1,3 @@
-
 #include "functions.h"
 
 String getFormattedDate(const DateTime dt)
@@ -9,11 +8,7 @@ String getFormattedDate(const DateTime dt)
     return String(sz) + String("+0000");
 }
 
-
-/**
- * Syncronize RTC
- */
-bool syncRTC(const ICom& com, const RTC_DS3231 rtc)
+bool syncRTC(ICom& com, const RTC_DS3231 rtc)
 {
     Serial.print(F("Sincronize RTC..."));
 
@@ -44,7 +39,7 @@ bool syncRTC(const ICom& com, const RTC_DS3231 rtc)
     return true;
 }
 
-bool sendData(const Istsos& sos)
+bool sendData(Istsos& sos)
 {
     bool res = sos.sendData();
 
@@ -98,8 +93,8 @@ bool calcLogInterval(const DateTime& current, const DateTime& last, uint8_t inte
         return false;
     }
 
-    uint32_t nowSec = current.secondstime();
-    uint32_t lastSec = last.secondstime();
+    uint32_t nowSec = current.secondstime() - current.second();
+    uint32_t lastSec = last.secondstime() - last.second();
 
     uint32_t diff = nowSec - lastSec;
 
@@ -113,8 +108,8 @@ bool calcLogInterval(const DateTime& current, const DateTime& last, uint8_t inte
 
 bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t sendingMinutes)
 {
-    uint32_t nowSec = now.secondstime();
-    uint32_t lastSec = lastSend.secondstime();
+    uint32_t nowSec = now.secondstime() - now.second();
+    uint32_t lastSec = lastSend.secondstime() - lastSend.second();
     uint32_t difference = nowSec - lastSec;
     uint32_t sendSec = sendingMinutes * 60;
 
@@ -134,20 +129,17 @@ bool calcSamplingTime(const DateTime& now, const DateTime& last, const uint8_t i
 
     uint32_t diff = nowSec - lastSec;
 
-    if (diff >= (interval - 1))
+    if (diff >= (uint32_t)(interval - 1))
     {
         return true;
     }
     return false;
 }
 
-float getLastValue(const RunningMedian& median)
+float getLastValue(RunningMedian& median)
 {
     uint8_t size = median.getCount();
-    if (size != 0)
-    {
-        return median.getElement(size - 1);
-    }
+    return median.getElement(size - 1);
 }
 
 void checkMinVar(RunningMedian& median, float value, float variance)
