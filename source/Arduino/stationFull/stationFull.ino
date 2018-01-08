@@ -22,7 +22,7 @@
 // istsos comunication library (GPRS)
 #include <istsos.h>
 // #include <com/drok.h>
-#include <com/sim800.h>
+#include <com/drok.h>
 #include <log/sdOpenlog.h>
 
 // temperature
@@ -47,6 +47,7 @@
 // #include <LowPower.h>
 // Include function library
 #include "functions.h"
+#include <measure.h>
 
 
 /*****************************************
@@ -107,11 +108,20 @@ RTC_DS3231 rtc;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dstemp(&oneWire);
 
+/******************************************
+ * Function to monitor RAM usage
+ *****************************************/
+int freeRam() {
+    extern int __heap_start, *__brkval;
+    int v;
+    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
+
 /*****************************************
  * Comunication and logging system
  ****************************************/
-// Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
-Sim800 com = Sim800(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
+Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
+// Sim800 com = Sim800(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
 OpenLog sdLog = OpenLog(Serial2);
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
@@ -129,7 +139,7 @@ volatile unsigned long rainlast;
 /******************************************
  * Arrays to get the median values last minute
  *****************************************/
-RunningMedian medianTemp    = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianTemp    = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianHum     = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianPres    = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianSoil    = RunningMedian(SAMPLING_TIME_MED);
@@ -139,10 +149,12 @@ RunningMedian medianIntHum  = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianWinDir  = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianWinSp   = RunningMedian(SAMPLING_TIME_MED);
 
+Measure measTemp = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+
 /******************************************
  * Arrays to get the median values last minute
  *****************************************/
-RunningMedian SampMedianTemp    = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianTemp    = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianHum     = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianPres    = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianSoil    = RunningMedian(SAMPLING_TIME_MEDIAN);
@@ -243,11 +255,12 @@ short get_wind_direction()
 void logMessage(const String message)
 {
     String date = getFormattedDate(rtc.now());
-    sos.logging(date, message);
+    // sos.logging(date, message);
 
-    Serial.print(date + " : ");
-    Serial.println(message);
-
+    #ifdef DEBUG
+        Serial.print(date + " : ");
+        Serial.println(message);
+    #endif
 }
 
 /**
@@ -259,9 +272,11 @@ void setup() {
     power_spi_disable();
 
     // init serial port
-    Serial.begin(9600);
-    while(!Serial){}
-    Serial1.begin(57200);
+    #ifdef DEBUG
+        Serial.begin(9600);
+        while(!Serial){}
+    #endif
+    Serial1.begin(57600);
     while(!Serial1){}
     Serial2.begin(9600);
     while(!Serial2){}
@@ -350,7 +365,9 @@ void setup() {
         flag = syncRTC(com, rtc);
     }
 
-    Serial.println(F("RTC sync success"));
+    #ifdef DEBUG
+        Serial.println(F("RTC sync success"));
+    #endif
     logMessage(SF("start loop"));
 
     DateTime now = rtc.now();
@@ -363,6 +380,9 @@ void setup() {
 
     lastSendDate = now;
     lastSamplingDate = now;
+
+    Serial.print(F("Free RAM: "));
+    Serial.println(freeRam());
 
     delay(2000);
 }
@@ -415,7 +435,8 @@ void getWeatherMeasure()
 
     if(temp >= -80.0 && temp <= 60.0)
     {
-        checkMinVar(medianTemp, temp, 2.0);
+        // checkMinVar(medianTemp, temp, 2.0);
+        measTemp.addMeasure(temp);
     }
     if(humidity >= 0.0 && humidity <= 100.0)
     {
@@ -459,20 +480,26 @@ String formatWeatherMeasure(const DateTime& now) {
     // get current date
     String message = getFormattedDate(now);
 
+    String tmp = measTemp.getAverageQI();
+    #ifdef DEBUG
+        Serial.print(F("Measure with flag: "));
+        Serial.println(tmp);
+    #endif
+
     // concat measures
     message += "," + String(SampMedianIntTemp.getAverage());
     message += "," + String(SampMedianSoil.getAverage());
     message += "," + String(SampMedianLux.getAverage());
     message += "," + String(SampMedianPres.getAverage());
     message += "," + String(SampMedianHum.getAverage());
-    message += "," + String(SampMedianTemp.getAverage());
+    message += "," + String(tmp);
     message += "," + String(rain);
     message += "," + String(SampMedianWinDir.getAverage());
     message += "," + String(SampMedianWinSp.getAverage());
     message += "," + String(SampMedianIntHum.getAverage());
 
     // empty median arrays
-    SampMedianTemp.clear();
+    // SampMedianTemp.clear();
     SampMedianHum.clear();
     SampMedianPres.clear();
     SampMedianSoil.clear();
@@ -494,12 +521,14 @@ String formatWeatherMeasure(const DateTime& now) {
 void medianLastMin()
 {
 
-    checkVar(SampMedianTemp, medianTemp, 2.0);
+    //checkVar(SampMedianTemp, medianTemp, 2.0);
     checkVar(SampMedianHum, medianHum, 10.0);
     checkVar(SampMedianPres, medianPres, 0.5);
 
     checkVar(SampMedianIntTemp, medianIntTemp, 5.0);
     checkVar(SampMedianIntHum, medianIntHum, 20.0);
+
+    measTemp.calcLastMin();
 
     SampMedianLux.add(medianLux.getAverage());
     SampMedianSoil.add(medianSoil.getAverage());
@@ -533,19 +562,27 @@ void loop() {
 
     if(calcLogInterval(now, lastLogDate, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
     {
-        Serial.println(F("time to log measures"));
+        #ifdef DEBUG
+            Serial.println(F("time to log measures"));
+        #endif
 
         String message = formatWeatherMeasure(now);
-        Serial.println(message);
+        #ifdef DEBUG
+            Serial.println(message);
+        #endif
         lastLogDate = now;
 
         sos.logData(message);
 
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
-            Serial.print(F(" Sending data: "));
-            bool res = sendData(sos);
-            Serial.println(res);
+            #ifdef DEBUG
+                Serial.print(F(" Sending data: "));
+            #endif
+            bool res = true;  // sendData(sos);
+            #ifdef DEBUG
+                Serial.println(res);
+            #endif
             lastSendDate = now;
 
             if(res)
