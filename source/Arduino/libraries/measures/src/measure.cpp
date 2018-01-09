@@ -1,15 +1,34 @@
+/******************************************************************************
+    Copyright (C) 2012-2017, Istituto Scienze della Terra
+
+    This program is free software; you can redistribute it and/or modify it
+    under the terms of the GNU General Public License as published by the
+    Free Software Foundation; either version 2 of the License, or (at your
+    option) any later version.
+
+    This program is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+    General Public License for more details.
+
+    You should have received a copy of the GNU General Public License along
+    with this program; if not, write to the Free Software Foundation, Inc.,
+    51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
+
+******************************************************************************/
 #include "measure.h"
 
 
 Measure::Measure(const uint8_t length, const uint8_t lengthBig, float minLimit, float maxLimit, float variance, float varianceBig)
 {
-    this->length = length;
-    this->lengthBig = lengthBig;
+    // this->length = length;
+    // this->lengthBig = lengthBig;
 
     this->variance = variance;
     this->varianceBig = varianceBig;
 
-    this->limits = new float[2] {minLimit, maxLimit};
+    this->minLimit = minLimit;
+    this->maxLimit = maxLimit;
 
     this->minuteValue = new RunningMedian(length);
     this->minuteFlag = new RunningMedian(length);
@@ -21,7 +40,7 @@ Measure::Measure(const uint8_t length, const uint8_t lengthBig, float minLimit, 
 void Measure::addMeasure(const float measure)
 {
     uint16_t flag = 0;
-    if(measure >= this->limits[0] && measure <= this->limits[1])
+    if(measure >= this->minLimit && measure <= this->maxLimit)
     {
         flag = this->checkMinuteVar(this->minuteValue, this->minuteFlag, measure, this->variance);
     }
@@ -120,17 +139,23 @@ float* Measure::calcAverageQI(const RunningMedian *meas, const RunningMedian *fl
 
     // check data
     uint8_t tmpLength = tmp->getCount();
-
-    if( (float) (tmpLength / length) >= 0.667)
+    float check = (float) ((float)tmpLength / (float)length);
+    if( check >= 0.666)
     {
-        result[0] = tmp->getAverage();
         result[1] = MEASURE_OK;
     }
     else
     {
-        result[0] = tmp->getAverage();
+        #ifdef DEBUG_MEASURES
+            Serial.print(F("Length: "));
+            Serial.println(check);
+        #endif
         result[1] = MEASURE_NOT_VALID;
     }
+
+    result[0] = tmp->getAverage();
+
+    delete tmp;
 
     return result;
 }
@@ -164,8 +189,10 @@ void Measure::calcLastMin()
         Serial.println(F(""));
     #endif
 
-    this->minuteValue->clear();
-    this->minuteFlag->clear();
+    this->minuteValue->clear(); // = new RunningMedian(this->length);
+    this->minuteFlag->clear(); // = new RunningMedian(this->length);
+
+    delete[] result;
 
 }
 
@@ -173,7 +200,12 @@ String Measure::getAverageQI()
 {
     float* result = this->calcAverageQI(this->samplingValue, this->samplingFlag);
 
-    this->samplingValue->clear();
-    this->samplingFlag->clear();
-    return String(result[0]) + ":" + String((uint16_t)result[1]);
+    this->samplingValue->clear(); // = new RunningMedian(this->length);
+    this->samplingFlag->clear(); // = new RunningMedian(this->length);
+
+    String tmp = String(result[0]) + ":" + String((uint16_t)result[1]);
+
+    delete[] result;
+
+    return tmp;
 }

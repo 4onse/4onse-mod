@@ -10,7 +10,7 @@ String getFormattedDate(const DateTime dt)
 
 bool syncRTC(ICom& com, const RTC_DS3231 rtc)
 {
-    Serial.print(F("Sincronize RTC..."));
+    // Serial.print(F("Sincronize RTC..."));
 
     // this code is only for testing
     // rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 12, (uint8_t) 12, (uint8_t) 8, (uint8_t) 49, (uint8_t) 00));
@@ -35,7 +35,7 @@ bool syncRTC(ICom& com, const RTC_DS3231 rtc)
     }
 
     rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
-    Serial.println(F("done"));
+    // Serial.println(F("done"));
     return true;
 }
 
@@ -64,7 +64,6 @@ bool sendData(Istsos& sos)
 
 bool calcInterval(uint8_t current, uint8_t last, uint32_t interval)
 {
-
     uint8_t tmp = 0;
 
     if (current >= last)

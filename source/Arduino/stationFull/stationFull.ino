@@ -140,27 +140,34 @@ volatile unsigned long rainlast;
  * Arrays to get the median values last minute
  *****************************************/
 // RunningMedian medianTemp    = RunningMedian(SAMPLING_TIME_MED);
-RunningMedian medianHum     = RunningMedian(SAMPLING_TIME_MED);
-RunningMedian medianPres    = RunningMedian(SAMPLING_TIME_MED);
-RunningMedian medianSoil    = RunningMedian(SAMPLING_TIME_MED);
-RunningMedian medianLux     = RunningMedian(SAMPLING_TIME_MED);
-RunningMedian medianIntTemp = RunningMedian(SAMPLING_TIME_MED);
-RunningMedian medianIntHum  = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianHum     = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianPres    = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianSoil    = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianLux     = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianIntTemp = RunningMedian(SAMPLING_TIME_MED);
+// RunningMedian medianIntHum  = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianWinDir  = RunningMedian(SAMPLING_TIME_MED);
 RunningMedian medianWinSp   = RunningMedian(SAMPLING_TIME_MED);
 
-Measure measTemp = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+// Measure measTemp = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+Measure measTemp     = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+Measure measHum      = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100.0, 5.0, 10.0);
+Measure measPres     = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 500.0, 1100.0, 0.3, 0.5);
+Measure measSoil     = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100.0, 5.0, 10.0);
+Measure measLux      = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100000.0, 1000, 2000);
+Measure measIntTemp  = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+Measure measIntHum   = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100.0, 5.0, 10.0);
 
 /******************************************
  * Arrays to get the median values last minute
  *****************************************/
 // RunningMedian SampMedianTemp    = RunningMedian(SAMPLING_TIME_MEDIAN);
-RunningMedian SampMedianHum     = RunningMedian(SAMPLING_TIME_MEDIAN);
-RunningMedian SampMedianPres    = RunningMedian(SAMPLING_TIME_MEDIAN);
-RunningMedian SampMedianSoil    = RunningMedian(SAMPLING_TIME_MEDIAN);
-RunningMedian SampMedianLux     = RunningMedian(SAMPLING_TIME_MEDIAN);
-RunningMedian SampMedianIntTemp = RunningMedian(SAMPLING_TIME_MEDIAN);
-RunningMedian SampMedianIntHum  = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianHum     = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianPres    = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianSoil    = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianLux     = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianIntTemp = RunningMedian(SAMPLING_TIME_MEDIAN);
+// RunningMedian SampMedianIntHum  = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianWinDir  = RunningMedian(SAMPLING_TIME_MEDIAN);
 RunningMedian SampMedianWinSp   = RunningMedian(SAMPLING_TIME_MEDIAN);
 
@@ -381,8 +388,10 @@ void setup() {
     lastSendDate = now;
     lastSamplingDate = now;
 
-    Serial.print(F("Free RAM: "));
-    Serial.println(freeRam());
+    #ifdef DEBUG
+        Serial.print(F("Free RAM: "));
+        Serial.println(freeRam());
+    #endif
 
     delay(2000);
 }
@@ -433,38 +442,48 @@ void getWeatherMeasure()
 
     lastrain = 0;
 
-    if(temp >= -80.0 && temp <= 60.0)
-    {
-        // checkMinVar(medianTemp, temp, 2.0);
-        measTemp.addMeasure(temp);
-    }
-    if(humidity >= 0.0 && humidity <= 100.0)
-    {
-        checkMinVar(medianHum, humidity, 5.0);
-    }
-    if(pressure >= 500.0 && pressure <= 1100.0)
-    {
-        checkMinVar(medianPres, pressure, 0.3);
-    }
-    if(lux >= 0.0 && lux <= 100000)
-    {
-        medianLux.add(lux);
-    }
-    if(soil >= 0.0 && soil <= 100.0)
-    {
-        medianSoil.add(soil);
-    }
+    measTemp.addMeasure(temp);
 
-    if(intTemp >= -60.0 && intTemp <= 100.0)
-    {
-        checkMinVar(medianIntTemp, intTemp, 3.0);
-        // medianIntTemp.add(intTemp);
-    }
-    if(intHum >= 0.0 && intHum <= 100.0)
-    {
-        checkMinVar(medianIntHum, intHum, 10.0);
-        // medianIntHum.add(intHum);
-    }
+    measHum.addMeasure(humidity);
+    measPres.addMeasure(pressure);
+    measLux.addMeasure(lux);
+    measSoil.addMeasure(soil);
+    measIntTemp.addMeasure(intTemp);
+    measIntHum.addMeasure(intHum);
+
+    // if(temp >= -80.0 && temp <= 60.0)
+    // {
+    //     checkMinVar(medianTemp, temp, 2.0);
+    //     // measTemp.addMeasure(temp);
+    // }
+    // if(humidity >= 0.0 && humidity <= 100.0)
+    // {
+    //     checkMinVar(medianHum, humidity, 5.0);
+    // }
+    // if(pressure >= 500.0 && pressure <= 1100.0)
+    // {
+    //     // checkMinVar(medianPres, pressure, 0.3);
+    //     measPres.addMeasure(pressure);
+    // }
+    // if(lux >= 0.0 && lux <= 100000)
+    // {
+    //     medianLux.add(lux);
+    // }
+    // if(soil >= 0.0 && soil <= 100.0)
+    // {
+    //     medianSoil.add(soil);
+    // }
+    //
+    // if(intTemp >= -60.0 && intTemp <= 100.0)
+    // {
+    //     checkMinVar(medianIntTemp, intTemp, 3.0);
+    //     // medianIntTemp.add(intTemp);
+    // }
+    // if(intHum >= 0.0 && intHum <= 100.0)
+    // {
+    //     checkMinVar(medianIntHum, intHum, 10.0);
+    //     // medianIntHum.add(intHum);
+    // }
 
     medianWinDir.add(winddir);
     medianWinSp.add(windspeedms);
@@ -480,32 +499,38 @@ String formatWeatherMeasure(const DateTime& now) {
     // get current date
     String message = getFormattedDate(now);
 
-    String tmp = measTemp.getAverageQI();
-    #ifdef DEBUG
-        Serial.print(F("Measure with flag: "));
-        Serial.println(tmp);
-    #endif
+    // concat measures
+    // message += "," + String(SampMedianIntTemp.getAverage());
+    // message += "," + String(SampMedianSoil.getAverage());
+    // message += "," + String(SampMedianLux.getAverage());
+    // message += "," + String(measPres.getAverageQI());  // SampMedianPres.getAverage());
+    // message += "," + String(SampMedianHum.getAverage());
+    // message += "," + String(SampMedianTemp.getAverage());
+    // message += "," + String(rain);
+    // message += "," + String(SampMedianWinDir.getAverage());
+    // message += "," + String(SampMedianWinSp.getAverage());
+    // message += "," + String(SampMedianIntHum.getAverage());
 
     // concat measures
-    message += "," + String(SampMedianIntTemp.getAverage());
-    message += "," + String(SampMedianSoil.getAverage());
-    message += "," + String(SampMedianLux.getAverage());
-    message += "," + String(SampMedianPres.getAverage());
-    message += "," + String(SampMedianHum.getAverage());
-    message += "," + String(tmp);
-    message += "," + String(rain);
-    message += "," + String(SampMedianWinDir.getAverage());
-    message += "," + String(SampMedianWinSp.getAverage());
-    message += "," + String(SampMedianIntHum.getAverage());
+    message += "," + measIntTemp.getAverageQI();
+    message += "," + measSoil.getAverageQI();
+    message += "," + measLux.getAverageQI();
+    message += "," + measPres.getAverageQI();
+    message += "," + measHum.getAverageQI();
+    message += "," + measTemp.getAverageQI();
+    message += "," + String(rain) + ":100";
+    message += "," + String(SampMedianWinDir.getAverage()) + ":100";
+    message += "," + String(SampMedianWinSp.getAverage()) + ":100";
+    message += "," + measTemp.getAverageQI();
 
     // empty median arrays
     // SampMedianTemp.clear();
-    SampMedianHum.clear();
-    SampMedianPres.clear();
-    SampMedianSoil.clear();
-    SampMedianLux.clear();
-    SampMedianIntTemp.clear();
-    SampMedianIntHum.clear();
+    // SampMedianHum.clear();
+    // SampMedianPres.clear();
+    // SampMedianSoil.clear();
+    // SampMedianLux.clear();
+    // SampMedianIntTemp.clear();
+    // SampMedianIntHum.clear();
     SampMedianWinDir.clear();
     SampMedianWinSp.clear();
 
@@ -521,24 +546,39 @@ String formatWeatherMeasure(const DateTime& now) {
 void medianLastMin()
 {
 
-    //checkVar(SampMedianTemp, medianTemp, 2.0);
-    checkVar(SampMedianHum, medianHum, 10.0);
-    checkVar(SampMedianPres, medianPres, 0.5);
+    // checkVar(SampMedianTemp, medianTemp, 2.0);
+    // checkVar(SampMedianHum, medianHum, 10.0);
+    // // checkVar(SampMedianPres, medianPres, 0.5);
+    //
+    // checkVar(SampMedianIntTemp, medianIntTemp, 5.0);
+    // checkVar(SampMedianIntHum, medianIntHum, 20.0);
 
-    checkVar(SampMedianIntTemp, medianIntTemp, 5.0);
-    checkVar(SampMedianIntHum, medianIntHum, 20.0);
 
     measTemp.calcLastMin();
+    measHum.calcLastMin();
+    measPres.calcLastMin();
+    measLux.calcLastMin();
+    measSoil.calcLastMin();
+    measIntTemp.calcLastMin();
+    measIntHum.calcLastMin();
 
-    SampMedianLux.add(medianLux.getAverage());
-    SampMedianSoil.add(medianSoil.getAverage());
     SampMedianWinDir.add(medianWinDir.getAverage());
     SampMedianWinSp.add(medianWinSp.getAverage());
 
-    medianLux.clear();
-    medianSoil.clear();
     medianWinSp.clear();
     medianWinDir.clear();
+
+    // SampMedianLux.add(medianLux.getAverage());
+    // SampMedianSoil.add(medianSoil.getAverage());
+    // SampMedianWinDir.add(medianWinDir.getAverage());
+    // SampMedianWinSp.add(medianWinSp.getAverage());
+    //
+    // medianTemp.clear();
+    // medianPres.clear();
+    // medianLux.clear();
+    // medianSoil.clear();
+    // medianWinSp.clear();
+    // medianWinDir.clear();
 }
 
 void loop() {
@@ -558,6 +598,10 @@ void loop() {
     {
         lastMisMin = min;
         medianLastMin();
+        #ifdef DEBUG
+            Serial.print(F("Free RAM after minute: "));
+            Serial.println(freeRam());
+        #endif
     }
 
     if(calcLogInterval(now, lastLogDate, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
@@ -572,7 +616,12 @@ void loop() {
         #endif
         lastLogDate = now;
 
-        sos.logData(message);
+        // temporary removed
+        // sos.logData(message);
+        #ifdef DEBUG
+            Serial.print(F("Free RAM after sd log: "));
+            Serial.println(freeRam());
+        #endif
 
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {

@@ -1,6 +1,6 @@
 #include "measure.h"
 
-Measure meas = Measure(6, 5, 0.0, 60.0, 2.0, 3.0);
+Measure meas = Measure(6, 5, 0.0, 19.0, 4.0, 5.0);
 RunningMedian medianTemp = RunningMedian(6);
 
 uint8_t counterMin = 0;
@@ -21,7 +21,7 @@ void setup()
 void loop()
 {
 
-    meas.addMeasure(10.0);
+    meas.addMeasure(random(10, 20));
     counterMin++;
 
     if(counterMin >= 6)

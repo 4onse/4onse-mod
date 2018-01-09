@@ -20,7 +20,7 @@
 #ifndef MEASURE_H
 #define MEASURE_H
 
-#define DEBUG_MEASURES
+// #define DEBUG_MEASURES
 
 #define MEASURE_OK 100
 #define MEASURE_NOT_VALID 200
@@ -40,10 +40,12 @@ class Measure
         RunningMedian* samplingValue;
         RunningMedian* samplingFlag;
 
-        uint8_t length;
-        uint8_t lengthBig;
+        // uint8_t length;
+        // uint8_t lengthBig;
 
-        float* limits;
+        float minLimit;
+        float maxLimit;
+
         float variance;
         float varianceBig;
 
