@@ -56,7 +56,7 @@ bool syncRTC(ICom& com, const RTC_DS3231 rtc);
  *
  * @return bool send status
 */
-bool sendData(Istsos& sos);
+uint8_t sendData(Istsos& sos);
 
 /**
  * Check if it's time to do the computation on the last minutes measures
@@ -120,7 +120,7 @@ float getLastValue(RunningMedian& median);
  * @param variance  variance
  *
 */
-void checkMinVar(RunningMedian& median, float value, float variance);
+// void checkMinVar(RunningMedian& median, float value, float variance);
 
 /**
  * Check if the last minute average is valid with the previous one
@@ -131,6 +131,6 @@ void checkMinVar(RunningMedian& median, float value, float variance);
  * @param variance  variance
  *
 */
-void checkVar(RunningMedian& big, RunningMedian& minute, float variance);
+// void checkVar(RunningMedian& big, RunningMedian& minute, float variance);
 
 #endif

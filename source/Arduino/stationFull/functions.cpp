@@ -36,18 +36,20 @@ bool syncRTC(ICom& com, const RTC_DS3231 rtc)
 
     rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
     // Serial.println(F("done"));
+    delete[] result;
+
     return true;
 }
 
-bool sendData(Istsos& sos)
+uint8_t sendData(Istsos& sos)
 {
-    bool res = sos.sendData();
+    uint8_t res = sos.sendData();
 
-    if (res)
+    if (res == 0)
     {
         sendStatus = true;
         countSend = 0;
-        return true;
+        return res;
     }
 
     countSend++;
@@ -56,10 +58,10 @@ bool sendData(Istsos& sos)
     {
         sendStatus = true;
         countSend = 0;
-        return true;
+        return res;
     }
 
-    return false;
+    return res;
 }
 
 bool calcInterval(uint8_t current, uint8_t last, uint32_t interval)
@@ -141,51 +143,51 @@ float getLastValue(RunningMedian& median)
     return median.getElement(size - 1);
 }
 
-void checkMinVar(RunningMedian& median, float value, float variance)
-{
-    if (isnan(value))
-    {
-        return;
-    }
-
-    if(median.getCount() != 0)
-    {
-        float lastVal = getLastValue(median);
-        if(fabs(lastVal - value) <= variance)
-        {
-            median.add(value);
-        }
-    }
-    else
-    {
-        median.add(value);
-    }
-
-}
-
-void checkVar(RunningMedian& big, RunningMedian& minute, float variance)
-{
-
-    float value = minute.getAverage();
-
-    if (isnan(value))
-    {
-        return;
-    }
-
-    if(big.getCount() != 0)
-    {
-        float lastVal = getLastValue(big);
-        if(fabs(lastVal - minute.getAverage()) <= variance)
-        {
-            big.add(minute.getAverage());
-        }
-    }
-    else
-    {
-        big.add(minute.getAverage());
-    }
-
-    minute.clear();
-
-}
+// void checkMinVar(RunningMedian& median, float value, float variance)
+// {
+//     if (isnan(value))
+//     {
+//         return;
+//     }
+//
+//     if(median.getCount() != 0)
+//     {
+//         float lastVal = getLastValue(median);
+//         if(fabs(lastVal - value) <= variance)
+//         {
+//             median.add(value);
+//         }
+//     }
+//     else
+//     {
+//         median.add(value);
+//     }
+//
+// }
+//
+// void checkVar(RunningMedian& big, RunningMedian& minute, float variance)
+// {
+//
+//     float value = minute.getAverage();
+//
+//     if (isnan(value))
+//     {
+//         return;
+//     }
+//
+//     if(big.getCount() != 0)
+//     {
+//         float lastVal = getLastValue(big);
+//         if(fabs(lastVal - minute.getAverage()) <= variance)
+//         {
+//             big.add(minute.getAverage());
+//         }
+//     }
+//     else
+//     {
+//         big.add(minute.getAverage());
+//     }
+//
+//     minute.clear();
+//
+// }

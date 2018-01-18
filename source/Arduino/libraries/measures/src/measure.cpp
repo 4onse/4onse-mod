@@ -19,10 +19,8 @@
 #include "measure.h"
 
 
-Measure::Measure(const uint8_t length, const uint8_t lengthBig, float minLimit, float maxLimit, float variance, float varianceBig)
+Measure::Measure(const uint8_t length, const uint8_t lengthBig, const float minLimit, const float maxLimit, const float variance, const float varianceBig)
 {
-    // this->length = length;
-    // this->lengthBig = lengthBig;
 
     this->variance = variance;
     this->varianceBig = varianceBig;
@@ -59,7 +57,7 @@ void Measure::addMeasure(const float measure)
         for( int i = 0; i < size; i++)
         {
             Serial.print(this->minuteValue->getElement(i));
-            Serial.print(",");
+            Serial.print(":");
             Serial.print((uint16_t)this->minuteFlag->getElement(i));
             Serial.print(";");
         }
@@ -69,7 +67,7 @@ void Measure::addMeasure(const float measure)
 
 }
 
-uint16_t Measure::checkMinuteVar(const RunningMedian *median, const RunningMedian *flag, const float value, const float variance)
+uint16_t Measure::checkMinuteVar(RunningMedian *median, RunningMedian *flag, const float value, const float variance)
 {
     if (isnan(value))
     {
@@ -107,7 +105,7 @@ uint16_t Measure::checkMinuteVar(const RunningMedian *median, const RunningMedia
     }
 }
 
-float Measure::getLastValue(const RunningMedian *median, const RunningMedian *flag)
+float Measure::getLastValue(RunningMedian *median, RunningMedian *flag)
 {
     uint8_t size = median->getCount();
     for( uint8_t i = size; i > 0; i--)
@@ -121,7 +119,7 @@ float Measure::getLastValue(const RunningMedian *median, const RunningMedian *fl
     return NAN;
 }
 
-float* Measure::calcAverageQI(const RunningMedian *meas, const RunningMedian *flag)
+float* Measure::calcAverageQI(RunningMedian *meas, RunningMedian *flag)
 {
     RunningMedian* tmp = new RunningMedian(meas->getSize());
     float* result = new float[2];
@@ -139,7 +137,9 @@ float* Measure::calcAverageQI(const RunningMedian *meas, const RunningMedian *fl
 
     // check data
     uint8_t tmpLength = tmp->getCount();
+
     float check = (float) ((float)tmpLength / (float)length);
+
     if( check >= 0.666)
     {
         result[1] = MEASURE_OK;
@@ -164,6 +164,7 @@ void Measure::calcLastMin()
 {
     float* result = this->calcAverageQI(this->minuteValue, this->minuteFlag);
     uint16_t flag = 0;
+    
     if(result[1] == MEASURE_OK)
     {
         flag = this->checkMinuteVar(this->samplingValue, this->samplingFlag, result[0], this->varianceBig);
@@ -189,9 +190,8 @@ void Measure::calcLastMin()
         Serial.println(F(""));
     #endif
 
-    this->minuteValue->clear(); // = new RunningMedian(this->length);
-    this->minuteFlag->clear(); // = new RunningMedian(this->length);
-
+    this->minuteValue->clear();
+    this->minuteFlag->clear();
     delete[] result;
 
 }
@@ -200,8 +200,13 @@ String Measure::getAverageQI()
 {
     float* result = this->calcAverageQI(this->samplingValue, this->samplingFlag);
 
-    this->samplingValue->clear(); // = new RunningMedian(this->length);
-    this->samplingFlag->clear(); // = new RunningMedian(this->length);
+    this->samplingValue->clear();
+    this->samplingFlag->clear();
+
+    if(isnan(result[0]))
+    {
+        result[0] = 0;
+    }
 
     String tmp = String(result[0]) + ":" + String((uint16_t)result[1]);
 

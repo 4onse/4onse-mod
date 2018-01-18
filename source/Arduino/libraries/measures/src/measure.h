@@ -40,20 +40,40 @@ class Measure
         RunningMedian* samplingValue;
         RunningMedian* samplingFlag;
 
-        // uint8_t length;
-        // uint8_t lengthBig;
-
         float minLimit;
         float maxLimit;
 
         float variance;
         float varianceBig;
 
-        uint16_t checkMinuteVar(const RunningMedian *median, const RunningMedian *flag, const float value, const float variance);
+        /**
+        * This function calculate the flag of the [value]
+        *
+        * @param median     Array with values
+        * @param flag       Array with flags
+        * @param value      Value to calculate flag
+        * @param variance   Variance
+        *
+        * @return uint16_t   Flag value
+        */
+        uint16_t checkMinuteVar(RunningMedian *median, RunningMedian *flag, const float value, const float variance);
 
-        float getLastValue(const RunningMedian *median, const RunningMedian *flag);
+        /**
+        * Return last valid value from median
+        *
+        * @param  median    Array with value
+        * @param  flag      Array with flag
+        *
+        * @return float     Last valid measure inside median
+        */
+        float getLastValue(RunningMedian *median, RunningMedian *flag);
 
-        float* calcAverageQI(const RunningMedian *meas, const RunningMedian *flag);
+        /**
+        * Calc the median value and flag
+        *
+        * @return float[]   Array of 2 element that represent the measure with the QI Example: [18.27, 100]
+        */
+        float* calcAverageQI(RunningMedian *meas, RunningMedian *flag);
 
     public:
         /**
@@ -62,7 +82,7 @@ class Measure
         * @param length Number of measures per minute
         * @param lengthBIg NUmer of minute for each sampligPeriog
         */
-        Measure(const uint8_t length=5, const uint8_t lengthBig=10, float minLimit=-100.0, float maxLimit=100.0, float variance = 5, float varianceBig = 10);
+        Measure(const uint8_t length=5, const uint8_t lengthBig=10, const float minLimit=-100.0, const float maxLimit=100.0, const float variance = 5, const float varianceBig = 10);
 
         /**
         * Add new mesure
@@ -77,6 +97,7 @@ class Measure
         void calcLastMin();
 
         /**
+        * Calc the median value and flag and convert it to String
         *
         * @return String    string that represent the measure with the QI Example: 18.27:100
         */
