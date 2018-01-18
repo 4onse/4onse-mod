@@ -22,7 +22,7 @@
 // istsos comunication library (GPRS)
 #include <istsos.h>
 #include <com/drok.h>
-#include <log/sdIstsos.h>
+#include <log/sdOpenlog.h>
 
 // temperature
 #include <OneWire.h>
@@ -101,7 +101,7 @@ DallasTemperature dstemp(&oneWire);
  * Comunication and logging system
  ****************************************/
 Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
-SdIstsos sdLog = SdIstsos(Serial2);
+OpenLog sdLog = OpenLog(Serial2);
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
 /******************************************
