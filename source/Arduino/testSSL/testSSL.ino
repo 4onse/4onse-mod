@@ -26,7 +26,7 @@ void setup()
 {
     Serial.begin(9600);
     while(!Serial){}
-    Serial1.begin(57200);
+    Serial1.begin(57600);
     while(!Serial1){}
 
     delay(1000);
