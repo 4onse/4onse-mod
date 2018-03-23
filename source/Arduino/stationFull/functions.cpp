@@ -39,9 +39,22 @@ bool syncRTC(ICom& com, RTC_DS3231 rtc)
         return false;
     }
 
-    rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
-    Serial.println(F("done"));
-    return true;
+    uint16_t year = (uint16_t) result[0];
+    uint8_t month = (uint8_t) result[1];
+    uint8_t day = (uint8_t) result[2];
+
+    rtc.adjust(DateTime(year, month, day, (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
+    delay(2000);
+
+    // check that the rtc has the correct date
+    DateTime now = rtc.now();
+
+    if(now.year() == year && now.month() == month && now.day() == day)
+    {
+        Serial.println(F("done"));
+        return true;
+    }
+    return false;
 }
 
 bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
@@ -81,4 +94,17 @@ bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t 
 
     return false;
 
+}
+
+void alert(uint8_t blink)
+{
+    for(uint8_t i = 0; i < blink; i++)
+    {
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(250);
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(250);
+    }
+
+    delay(2000);
 }
