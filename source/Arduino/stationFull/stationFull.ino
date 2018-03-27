@@ -22,7 +22,7 @@
 // istsos comunication library (GPRS)
 #include <istsos.h>
 #include <com/drok.h>
-#include <log/sdIstsos.h>
+#include <log/sdOpenlog.h>
 
 // temperature
 #include <OneWire.h>
@@ -80,7 +80,7 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define WDIR A0
 
 #define SAMPLING_TIME_MIN 5
-#define SENDING_TIME_MIN 15
+#define SENDING_TIME_MIN 10
 
 #define SF(x) String(F(x))
 
@@ -101,7 +101,7 @@ DallasTemperature dstemp(&oneWire);
  * Comunication and logging system
  ****************************************/
 Drok com = Drok(Serial1, APN, APNUSER, PASS, BASIC_AUTH, SIM_PIN);
-SdIstsos sdLog = SdIstsos(Serial2);
+OpenLog sdLog = OpenLog(Serial2);
 Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
 
 /******************************************
@@ -191,7 +191,7 @@ float get_wind_speed()
 short get_wind_direction()
 {
     unsigned short adc;
-    adc = analogRead(WDIR); // get the current reading from the sensor
+    adc = analogRead(WDIR); // get the current rpinMode(LED_BUILTIN, OUTPUT);eading from the sensor
 
     // https://www.sparkfun.com/datasheets/Sensors/Weather/Weather%20Sensor%20Assembly.pdf
     // using 10K pull-up resistor
@@ -247,6 +247,10 @@ void setup() {
     // disable unuset elements
     power_spi_disable();
 
+    pinMode(LED_BUILTIN, OUTPUT);
+
+    digitalWrite(LED_BUILTIN, HIGH);
+
     // init serial port
     Serial.begin(9600);
     while(!Serial){}
@@ -256,16 +260,22 @@ void setup() {
     while(!Serial2){}
     delay(3000);
 
-
+    alert(3);
     if (!rtc.begin())
     {
         #ifdef DEBUG
             Serial.println(F("Couldn't find RTC"));
         #endif
+
         return;
+        delay(5000);
     }
 
-    sos.begin();
+    alert(4);
+    while(!sos.begin())
+    {
+        delay(5000);
+    }
 
     #ifdef DEBUG
         Serial.println(F("SOS ready"));
@@ -287,19 +297,30 @@ void setup() {
         Serial.println(F("DHT ready"));
     #endif
 
-    if (!bme.begin(BME_I2C_ADDR))
+    alert(5);
+    while(1)
     {
-        BME_I2C_ADDR = 0x77;
-        if(!bme.begin(BME_I2C_ADDR))
+        if (!bme.begin(BME_I2C_ADDR))
         {
-            #ifdef DEBUG
-                Serial.println(F("BME280 sensor not found"));
-            #endif
-            logMessage(SF("BME280 sensor not found"));
-            delay(10000);
-            setup();
-        }
+            BME_I2C_ADDR = 0x77;
+            if (!bme.begin(BME_I2C_ADDR))
+            {
+                #ifdef DEBUG
+                    Serial.println(F("BME280 sensor not found"));
+                #endif
+                logMessage(SF("BME280 sensor not found"));
 
+                delay(5000);
+            }
+            else
+            {
+                break;
+            }
+        }
+        else
+        {
+            break;
+        }
     }
 
     #ifdef DEBUG
@@ -329,19 +350,20 @@ void setup() {
     logMessage(SF("init process success"));
     delay(2000);
 
-    bool flag = false;
+    alert(6);
 
-    while(!flag)
+    while(1)
     {
         logMessage(SF("Start rtc sync process"));
-        flag = syncRTC(com, rtc);
+        if(syncRTC(com, rtc))
+        {
+            break;
+        }
+
+        delay(5000);
     }
 
     logMessage(SF("RTC sync success"));
-
-    // checkInternalTemp();
-
-    logMessage(SF("start loop"));
 
     delay(2000);
 
@@ -355,7 +377,46 @@ void setup() {
 
     lastSendDate = now;
 
-    delay(2000);
+    delay(1000);
+
+    // try communication
+    // generate "random" string
+    String tmpDate = getFormattedDate(rtc.now());
+    String tmp = SF(PROCEDURE_ID) + SF(";") + tmpDate;
+    tmp += SF(",21.00:800,0.00:800,6.00:800,1000.0:800,22.98:800,21.31:800,0.00:800,-1.00:800,0.00:800");
+
+
+    #ifdef DEBUG
+        Serial.print(F("Test string: "));
+        Serial.println(tmp);
+    #endif
+
+    alert(7);
+
+    while(1)
+    {
+        uint8_t code = com.executePost(SERVER, URI, tmp);
+
+        #ifdef DEBUG
+            Serial.print(F("Error code: "));
+            Serial.println(code);
+        #endif
+
+        if(code == 0)
+        {
+            break;
+        }
+        delay(5000);
+    }
+
+
+    #ifdef DEBUG
+        Serial.println(F("Setup ready... starting loop"));
+    #endif
+
+    logMessage(SF("start loop"));
+
+    digitalWrite(LED_BUILTIN, LOW);
 }
 
 /**
@@ -457,23 +518,34 @@ void sendData()
     // String date = getFormattedDate(now);
     logMessage(SF("Sending data..."));
 
-    bool res = sos.sendData();
+    uint8_t res = sos.sendData();
 
-    if (res)
+    #ifdef DEBUG
+        Serial.print(F("Error code: "));
+        Serial.println(res);
+    #endif
+
+    if (res == 0)
     {
         logMessage(SF("data send"));
-        Serial.println(F("data send"));
+        #ifdef DEBUG
+            Serial.println(F("data send"));
+        #endif
         sendStatus = true;
         count = 0;
+        digitalWrite(LED_BUILTIN, LOW);
     }
     else
     {
         count++;
         sendStatus = false;
+        alert(2);
         if (count >= 3)
         {
             logMessage(SF("problem sending data"));
-            Serial.println(F("problem sending data"));
+            #ifdef DEBUG
+                Serial.println(F("problem sending data"));
+            #endif
             sendStatus = true;
             count = 0;
         }
@@ -493,10 +565,9 @@ void loop() {
         lastMisMin = min;
 
         getWeatherMeasure();
-        // Serial.println(F("Get measures"));
 
         // check if it's time to log data
-        if(calcInterval(min, lastLogMin, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
+        if(calcInterval(min, lastLogMin, SAMPLING_TIME_MIN) && min < 60)
         {
             String message = formatWeatherMeasure(now);
             Serial.println(message);
