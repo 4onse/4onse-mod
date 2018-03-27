@@ -80,7 +80,7 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define WDIR A0
 
 #define SAMPLING_TIME_MIN 5
-#define SENDING_TIME_MIN 15
+#define SENDING_TIME_MIN 10
 
 #define SF(x) String(F(x))
 
@@ -398,7 +398,7 @@ void setup() {
         uint8_t code = com.executePost(SERVER, URI, tmp);
 
         #ifdef DEBUG
-            Serial.print(F("Response: "));
+            Serial.print(F("Error code: "));
             Serial.println(code);
         #endif
 
@@ -521,7 +521,7 @@ void sendData()
     uint8_t res = sos.sendData();
 
     #ifdef DEBUG
-        Serial.print(F("Response: "));
+        Serial.print(F("Error code: "));
         Serial.println(res);
     #endif
 
