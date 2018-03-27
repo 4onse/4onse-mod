@@ -49,9 +49,11 @@ uint8_t sendData(Istsos& sos)
     {
         sendStatus = true;
         countSend = 0;
+        digitalWrite(LED_BUILTIN, LOW);
         return res;
     }
 
+    alert(2);
     countSend++;
     sendStatus = false;
     if (countSend >= 3)
@@ -143,51 +145,15 @@ float getLastValue(RunningMedian& median)
     return median.getElement(size - 1);
 }
 
-// void checkMinVar(RunningMedian& median, float value, float variance)
-// {
-//     if (isnan(value))
-//     {
-//         return;
-//     }
-//
-//     if(median.getCount() != 0)
-//     {
-//         float lastVal = getLastValue(median);
-//         if(fabs(lastVal - value) <= variance)
-//         {
-//             median.add(value);
-//         }
-//     }
-//     else
-//     {
-//         median.add(value);
-//     }
-//
-// }
-//
-// void checkVar(RunningMedian& big, RunningMedian& minute, float variance)
-// {
-//
-//     float value = minute.getAverage();
-//
-//     if (isnan(value))
-//     {
-//         return;
-//     }
-//
-//     if(big.getCount() != 0)
-//     {
-//         float lastVal = getLastValue(big);
-//         if(fabs(lastVal - minute.getAverage()) <= variance)
-//         {
-//             big.add(minute.getAverage());
-//         }
-//     }
-//     else
-//     {
-//         big.add(minute.getAverage());
-//     }
-//
-//     minute.clear();
-//
-// }
+void alert(uint8_t blink)
+{
+    for(uint8_t i = 0; i < blink; i++)
+    {
+        digitalWrite(LED_BUILTIN, LOW);
+        delay(250);
+        digitalWrite(LED_BUILTIN, HIGH);
+        delay(250);
+    }
+
+    delay(2000);
+}
