@@ -355,7 +355,7 @@ void setup() {
                     Serial.println(F("BME280 sensor not found"));
                 #endif
                 logMessage(SF("BME280 sensor not found"));
-
+                BME_I2C_ADDR = 0x76;
                 delay(5000);
             }
             else
@@ -378,14 +378,11 @@ void setup() {
     pinMode(RAIN, INPUT_PULLUP);
     pinMode(SOIL_A_PIN, INPUT);
 
-    // attach external interrupt pins to IRQ functions (rain and wind speed)
     attachInterrupt(digitalPinToInterrupt(RAIN), rainIRQ, FALLING); // FALLING
-    // attachInterrupt(0, rainIRQ, HIGH);
     #ifdef WIND
         pinMode(WSPEED, INPUT_PULLUP);
         attachInterrupt(digitalPinToInterrupt(WSPEED), wspeedIRQ, FALLING);
     #endif
-    // attachInterrupt(1, wspeedIRQ, HIGH);
 
     // turn on interrupts
     interrupts();
@@ -410,54 +407,71 @@ void setup() {
         Serial.println(F("RTC sync success"));
     #endif
 
-    String tmpDate = getFormattedDate(rtc.now());
-    String tmp = SF(PROCEDURE_ID) + SF(";") + tmpDate;
-
-    dstemp.requestTemperatures();
-
-    lightMeter.configure(BH1750_ONE_TIME_HIGH_RES_MODE);
-    delay(150);
-
-    uint16_t lux = lightMeter.readLightLevel();
-    float pressure = bme.readPressure() / 100.0F;
-    float humidity = bme.readHumidity();
-    float temp = dstemp.getTempCByIndex(0);
-    uint8_t soil = readSoil();
-    int winddir = get_wind_direction();
-    float windspeedms = get_wind_speed();
-    float intTemp = dht.readTemperature();
-
-    tmp += SF(",") + String(intTemp) + SF(":800");
-    tmp += SF(",") + String(soil) + SF(":800");
-    tmp += SF(",") + String(lux) + SF(":800");
-    tmp += SF(",") + String(pressure) + SF(":800");
-    tmp += SF(",") + String(humidity) + SF(":800");
-    tmp += SF(",") + String(temp) + SF(":800");
-    tmp += SF(",") + String(rain) + SF(":800");
-    tmp += SF(",") + String(winddir) + SF(":800");
-    tmp += SF(",") + String(windspeedms) + SF(":800");
-
-    #ifdef DEBUG
-        Serial.print(F("Test string: "));
-        Serial.println(tmp);
-    #endif
-
-    alert(7);
-
-    while(1)
+    if (sos.checkMissingData())
     {
-        uint8_t code = com.executePost(SERVER, URI, tmp);
+        while(1)
+        {
+            uint8_t flag = sos.sendData();
+
+            if(flag == REQUEST_SUCCESS)
+            {
+                logMessage(SF("Uploaded missing data"));
+                break;
+            }
+            delay(10000);
+        }
+    }
+    else
+    {
+        String tmpDate = getFormattedDate(rtc.now());
+        String tmp = SF(PROCEDURE_ID) + SF(";") + tmpDate;
+
+        dstemp.requestTemperatures();
+
+        lightMeter.configure(BH1750_ONE_TIME_HIGH_RES_MODE);
+        delay(150);
+
+        uint16_t lux = lightMeter.readLightLevel();
+        float pressure = bme.readPressure() / 100.0F;
+        float humidity = bme.readHumidity();
+        float temp = dstemp.getTempCByIndex(0);
+        uint8_t soil = readSoil();
+        int winddir = get_wind_direction();
+        float windspeedms = get_wind_speed();
+        float intTemp = dht.readTemperature();
+
+        tmp += SF(",") + String(intTemp) + SF(":800");
+        tmp += SF(",") + String(soil) + SF(":800");
+        tmp += SF(",") + String(lux) + SF(":800");
+        tmp += SF(",") + String(pressure) + SF(":800");
+        tmp += SF(",") + String(humidity) + SF(":800");
+        tmp += SF(",") + String(temp) + SF(":800");
+        tmp += SF(",") + String(rain) + SF(":800");
+        tmp += SF(",") + String(winddir) + SF(":800");
+        tmp += SF(",") + String(windspeedms) + SF(":800");
 
         #ifdef DEBUG
-            Serial.print(F("Error code: "));
-            Serial.println(code);
+            Serial.print(F("Test string: "));
+            Serial.println(tmp);
         #endif
 
-        if(code == 0)
+        alert(7);
+
+        while(1)
         {
-            break;
+            uint8_t code = com.executePost(SERVER, URI, tmp);
+
+            #ifdef DEBUG
+                Serial.print(F("Error code: "));
+                Serial.println(code);
+            #endif
+
+            if(code == 0)
+            {
+                break;
+            }
+            delay(5000);
         }
-        delay(5000);
     }
 
     logMessage(SF("start loop"));
@@ -481,6 +495,7 @@ void setup() {
     delay(2000);
 
     digitalWrite(LED_BUILTIN, LOW);
+
 }
 
 /**

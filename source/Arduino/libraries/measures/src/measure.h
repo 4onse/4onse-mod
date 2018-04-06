@@ -79,8 +79,12 @@ class Measure
         /**
         * Class to manage measures
         *
-        * @param length Number of measures per minute
-        * @param lengthBIg NUmer of minute for each sampligPeriog
+        * @param length         Number of measures per minute
+        * @param lengthBig      Numer of minute for each sampligPeriog
+        * @params minLimit      Minimum possible valid value
+        * @params maxLimit      Maximum possible valid value
+        * @params variance      Variance value to check last min value
+        * @parmas varianceBig   Variance 
         */
         Measure(const uint8_t length=5, const uint8_t lengthBig=10, const float minLimit=-100.0, const float maxLimit=100.0, const float variance = 5, const float varianceBig = 10);
 
