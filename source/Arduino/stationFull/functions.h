@@ -112,25 +112,10 @@ bool calcSamplingTime(const DateTime& now, const DateTime& last, const uint8_t i
 float getLastValue(RunningMedian& median);
 
 /**
- * Check if the last measured values is valid with the previous one
- * Check on a plausible rate of change
- *
- * @param median    median to store data
- * @param value     value to be check and stored
- * @param variance  variance
- *
+*    Function to blink the buildin led a defined amount of time
+*
+*   @param blink    Number of time to blink
 */
-// void checkMinVar(RunningMedian& median, float value, float variance);
-
-/**
- * Check if the last minute average is valid with the previous one
- * Time consistency check
- *
- * @param big       Median for the last 10 minutes
- * @param minute    Last minute median array
- * @param variance  variance
- *
-*/
-// void checkVar(RunningMedian& big, RunningMedian& minute, float variance);
+void alert(uint8_t blink);
 
 #endif

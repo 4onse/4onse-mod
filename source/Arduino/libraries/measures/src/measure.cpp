@@ -164,7 +164,7 @@ void Measure::calcLastMin()
 {
     float* result = this->calcAverageQI(this->minuteValue, this->minuteFlag);
     uint16_t flag = 0;
-    
+
     if(result[1] == MEASURE_OK)
     {
         flag = this->checkMinuteVar(this->samplingValue, this->samplingFlag, result[0], this->varianceBig);
