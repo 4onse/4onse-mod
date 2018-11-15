@@ -19,6 +19,9 @@
 // =========================================================================
 
 #define DEBUG
+// #define DEBUG_RAM
+#define WIND
+
 // istsos comunication library (GPRS)
 #include <istsos.h>
 #include <com/drok.h>
@@ -40,27 +43,27 @@
 #include <DHT.h>
 // Median
 #include <RunningMedian.h>
+#include <measure.h>
+
+// Include function library
+#include "functions.h"
 
 // Power saving
 #include <avr/power.h>
-// #include <LowPower.h>
-// Include function library
-#include "functions.h"
 
 
 /*****************************************
  * Configure params
  ****************************************/
-// #define SERVER "geoservice.ist.supsi.ch"
-// #define URI "/4onse/wa/istsos/services/sos/operations/fastinsert"
-// #define PROCEDURE_ID "175378da9a0511e79e2008002745029a"
-// #define BASIC_AUTH "YWRtaW46QlYzWGp2clA="
+#define SERVER "geoservice.ist.supsi.ch"
+#define URI "/4onse/wa/istsos/services/sos/operations/fastinsert"
+#define PROCEDURE_ID "xxx"
+#define BASIC_AUTH "xxx"
 //
-// #define APN "gprs.swisscom.ch"
-// #define APNUSER "gprs"
-// #define PASS "gprs"
-// #define SIM_PIN ""
-
+#define APN ""
+#define APNUSER ""
+#define PASS ""
+#define SIM_PIN ""
 
 /*****************************************
  * Define sensor pin
@@ -68,8 +71,6 @@
 #define ONE_WIRE_BUS 9
 #define SOIL_A_PIN A13
 
-// BME could be 0x76 or 0x77
-uint8_t BME_I2C_ADDR = 0x76;
 
 #define DHTPIN 10
 #define DHTTYPE DHT11
@@ -79,23 +80,35 @@ uint8_t BME_I2C_ADDR = 0x76;
 #define RAIN 2
 #define WDIR A0
 
-#define SAMPLING_TIME_MIN 5
-#define SENDING_TIME_MIN 10
+// BME could be 0x76 or 0x77
+uint8_t BME_I2C_ADDR = 0x76;
 
+// magic
 #define SF(x) String(F(x))
 
-#define MEDIAN_LENGTH SAMPLING_TIME_MIN
+/*****************************************
+ * Define time intervals
+ ****************************************/
 
-DHT dht(DHTPIN, DHTTYPE);
+#define SAMPLING_TIME_MIN 5     // Sampling logging time (minutes)
+#define SENDING_TIME_MIN 10     // Sending time (minutes)
+
+// how many measures every minutes
+#define SAMPLING_TIME_MED 6
+//
+#define SAMPLING_TIME_MEDIAN SAMPLING_TIME_MIN
+
 
 /*****************************************
  * Sensors definition
  ****************************************/
+DHT dht(DHTPIN, DHTTYPE);
 BH1750 lightMeter;
 Adafruit_BME280 bme;
 RTC_DS3231 rtc;
 OneWire oneWire(ONE_WIRE_BUS);
 DallasTemperature dstemp(&oneWire);
+
 
 /*****************************************
  * Comunication and logging system
@@ -109,37 +122,62 @@ Istsos sos(sdLog, com, SERVER, URI, PROCEDURE_ID);
  *****************************************/
 
 volatile float lastrain = 0;
-float rain = 0.0;
-uint8_t windClicks = 0;
-volatile unsigned long lastWindCheck = 0;
-volatile unsigned long lastWindIRQ = 0;
 volatile unsigned long rainlast;
+float rain = 0.0;
 
-/******************************************
- * Arrays to get the median values
- *****************************************/
-RunningMedian medianTemp    = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianHum     = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianPres    = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianSoil    = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianLux     = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianIntTemp = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianWinDir  = RunningMedian(MEDIAN_LENGTH);
-RunningMedian medianWinSp   = RunningMedian(MEDIAN_LENGTH);
+#ifdef WIND
+    uint8_t windClicks = 0;
+    volatile unsigned long lastWindCheck = 0;
+    volatile unsigned long lastWindIRQ = 0;
 
-// Variable to manage data log and data send
+    /******************************************
+     * Arrays to get the median values last minute
+     *****************************************/
+    RunningMedian medianWinDir  = RunningMedian(SAMPLING_TIME_MED);
+    RunningMedian medianWinSp   = RunningMedian(SAMPLING_TIME_MED);
+    /******************************************
+     * Arrays to get the median values last minute
+     *****************************************/
+    RunningMedian SampMedianWinDir  = RunningMedian(SAMPLING_TIME_MEDIAN);
+    RunningMedian SampMedianWinSp   = RunningMedian(SAMPLING_TIME_MEDIAN);
+#endif
+
+Measure measTemp     = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+Measure measHum      = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100.0, 5.0, 10.0);
+Measure measPres     = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 500.0, 1100.0, 0.3, 0.5);
+Measure measSoil     = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100.0, 5.0, 10.0);
+Measure measLux      = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100000.0, 1000, 2000);
+Measure measIntTemp  = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, -80.0, 60.0, 2.0, 3.0);
+// Measure measIntHum   = Measure(SAMPLING_TIME_MED, SAMPLING_TIME_MEDIAN, 0.0, 100.0, 5.0, 10.0);
+
+/*********************************************
+ * Variable to manage data log and data send
+ ********************************************/
+
 uint8_t lastMin = 0;
 uint8_t lastDay = 0;
-uint8_t lastLogMin = 0;
+DateTime lastLogDate;
 uint8_t lastMisMin = 0;
 DateTime lastSendDate;
+DateTime lastSamplingDate;
 
+uint8_t countSend = 0;
+bool sendStatus = true;
+
+/******************************************
+ * Function to monitor RAM usage
+ *****************************************/
+int freeRam() {
+    extern int __heap_start, *__brkval;
+    int v;
+    return (int) &v - (__brkval == 0 ? (int) &__heap_start : (int) __brkval);
+}
 
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 // Hardware interrupt
 //-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=-=
 
-/*
+/**
 *  Count rain gauge bucket tips as they occur
 *  activated by the magnet and reed switch in the rain gauge, attached to input D2
 */
@@ -147,90 +185,66 @@ void rainIRQ()
 {
     if ((unsigned long)(millis() - rainlast) > 10) // ignore switch-bounce glitches less than 10mS after initial edge
     {
-        lastrain += 0.2; //0.011;
+        lastrain += 0.2; // 0.011;
         rainlast = millis(); // set up for next event
     }
 }
-
-/*
-*   Activated by the magnet in the anemometer (2 ticks per rotation), attached to input D3
-*/
-void wspeedIRQ()
-{
-    if ((unsigned long) (millis() - lastWindIRQ) > 10)
+#ifdef WIND
+    /**
+    *   Activated by the magnet in the anemometer (2 ticks per rotation), attached to input D3
+    */
+    void wspeedIRQ()
     {
-        lastWindIRQ = millis();
-        windClicks++; //There is 1.492MPH for each click per second.
+        if ((unsigned long) (millis() - lastWindIRQ) > 10)
+        {
+            lastWindIRQ = millis();
+            windClicks++; //There is 1.492MPH for each click per second.
+        }
     }
-}
 
-/**
- * get wind speed
- *
- * @return float wind speed (m/s)
- */
-float get_wind_speed()
-{
-    unsigned long now = millis();
-    float deltaTime = (float) now - lastWindCheck; //750ms
+    /**
+     * get wind speed
+     *
+     * @return float wind speed (m/s)
+     */
+    float get_wind_speed()
+    {
+        unsigned long now = millis();
+        float deltaTime = (float) now - lastWindCheck; //750ms
 
-    deltaTime /= 1000.0; //Covert to seconds
+        deltaTime /= 1000.0; //Covert to seconds
 
-    float windSpeed = (float)(windClicks / deltaTime); //3 / 0.750s = 4
+        float windSpeed = (float)(windClicks / deltaTime); //3 / 0.750s = 4
 
-    windClicks = 0; //Reset and start watching for new wind
-    lastWindCheck = now;
+        windClicks = 0; //Reset and start watching for new wind
+        lastWindCheck = now;
 
-    windSpeed = (windSpeed * 1.492) * (1.609344 / 3.6); //4 * 1.492 = 5.968MPH
+        windSpeed = (windSpeed * 1.492) * (1.609344 / 3.6); //4 * 1.492 = 5.968MPH
 
-    return (windSpeed);
-}
-/*
-   Read the wind direction sensor, return heading in degrees
- */
-short get_wind_direction()
-{
-    unsigned short adc;
-    adc = analogRead(WDIR); // get the current rpinMode(LED_BUILTIN, OUTPUT);eading from the sensor
+        return (windSpeed);
+    }
+    /**
+       Read the wind direction sensor, return heading in degrees
+     */
+    short get_wind_direction()
+    {
+        unsigned short adc;
+        adc = analogRead(WDIR); // get the current reading from the sensor
 
-    // https://www.sparkfun.com/datasheets/Sensors/Weather/Weather%20Sensor%20Assembly.pdf
-    // using 10K pull-up resistor
+        // https://www.sparkfun.com/datasheets/Sensors/Weather/Weather%20Sensor%20Assembly.pdf
+        // using 10K pull-up resistor
 
-    if (adc < 100) return (90);
-    if (adc < 200) return (135);
-    if (adc < 300) return (180);
-    if (adc < 500) return (45);
-    if (adc < 660) return (225);
-    if (adc < 800) return (0);
-    if (adc < 946) return (315);
-    if (adc < 979) return (270);
-    return -1;
-}
-
-float getInternalTemp()
-{
-    return dht.readTemperature();
-}
-
-/**
- * Check the internal temp and start the fan if it's above 30°
- */
-void checkInternalTemp()
-{
-    // float t = getInternalTemp();
-
-    // remove return to start the fan
-    return;
-
-    // if (t >= 40.0)
-    // {
-    //     Serial.println(F("Start fan...."));
-    //     digitalWrite(FAN_PIN, LOW);
-    //     delay(20000);
-    //     Serial.println(F("Stop fan..."));
-    //     digitalWrite(FAN_PIN, HIGH);
-    // }
-}
+        if (adc < 100) return (90);
+        if (adc < 200) return (135);
+        if (adc < 300) return (180);
+        if (adc < 500) return (45);
+        if (adc < 660) return (225);
+        if (adc < 800) return (0);
+        if (adc < 946) return (315);
+        if (adc < 979) return (270);
+        return -1;
+    }
+#endif
 
 /**
 *   Log message inside SD
@@ -240,34 +254,60 @@ void logMessage(const String message)
 {
     String date = getFormattedDate(rtc.now());
     sos.logging(date, message);
+
+    #ifdef DEBUG
+        Serial.print(date + " : ");
+        Serial.println(message);
+    #endif
 }
 
+/**
+ * Read soil humidity (0-100)
+ *
+ * @return short soil humidity
+ */
+short readSoil() // or float
+{
+    short value = analogRead(SOIL_A_PIN);
+    short measure = ((1023.0 - value) / 1023.0) * 100.0; // or float
+    return measure;
+}
+
+/**
+    Initialization
+*/
 void setup() {
 
     // disable unuset elements
     power_spi_disable();
 
-    pinMode(LED_BUILTIN, OUTPUT);
 
+    // clock_prescale_set(clock_div_2);
+
+    pinMode(LED_BUILTIN, OUTPUT);
     digitalWrite(LED_BUILTIN, HIGH);
 
+
     // init serial port
-    Serial.begin(9600);
+    Serial.begin(9600);     // Serial to PC
     while(!Serial){}
-    Serial1.begin(57200);
+    Serial1.begin(57200);   // Serial to GPRS
     while(!Serial1){}
-    Serial2.begin(9600);
+    Serial2.begin(9600);    // Serial to SD
     while(!Serial2){}
     delay(3000);
 
+    // this variables are used in function.cpp
+    countSend = 0;
+    sendStatus = true;
+
     alert(3);
-    if (!rtc.begin())
+    // check rtc
+    while (!rtc.begin())
     {
         #ifdef DEBUG
             Serial.println(F("Couldn't find RTC"));
         #endif
-
-        return;
         delay(5000);
     }
 
@@ -284,6 +324,11 @@ void setup() {
 
     logMessage(SF("Start init process..."));
 
+    #ifdef DEBUG
+        Serial.println(F("SOS ready"));
+        Serial.println(F("Init..."));
+    #endif
+
     // init sensors
     lightMeter.begin();
 
@@ -298,6 +343,7 @@ void setup() {
     #endif
 
     alert(5);
+
     while(1)
     {
         if (!bme.begin(BME_I2C_ADDR))
@@ -309,7 +355,7 @@ void setup() {
                     Serial.println(F("BME280 sensor not found"));
                 #endif
                 logMessage(SF("BME280 sensor not found"));
-
+                BME_I2C_ADDR = 0x76;
                 delay(5000);
             }
             else
@@ -323,22 +369,20 @@ void setup() {
         }
     }
 
+
     #ifdef DEBUG
         Serial.println(F("BME ready"));
     #endif
 
-    pinMode(WSPEED, INPUT_PULLUP);
-    pinMode(RAIN, INPUT_PULLUP);
-    pinMode(FAN_PIN, OUTPUT);
-    digitalWrite(FAN_PIN, HIGH);
     // set pin mode
+    pinMode(RAIN, INPUT_PULLUP);
     pinMode(SOIL_A_PIN, INPUT);
 
-    // attach external interrupt pins to IRQ functions (rain and wind speed)
     attachInterrupt(digitalPinToInterrupt(RAIN), rainIRQ, FALLING); // FALLING
-    // attachInterrupt(0, rainIRQ, HIGH);
-    attachInterrupt(digitalPinToInterrupt(WSPEED), wspeedIRQ, FALLING);
-    // attachInterrupt(1, wspeedIRQ, HIGH);
+    #ifdef WIND
+        pinMode(WSPEED, INPUT_PULLUP);
+        attachInterrupt(digitalPinToInterrupt(WSPEED), wspeedIRQ, FALLING);
+    #endif
 
     // turn on interrupts
     interrupts();
@@ -350,22 +394,87 @@ void setup() {
     logMessage(SF("init process success"));
     delay(2000);
 
-    alert(6);
+    bool flag = false;
 
-    while(1)
+    alert(6);
+    while(!flag)
     {
         logMessage(SF("Start rtc sync process"));
-        if(syncRTC(com, rtc))
-        {
-            break;
-        }
-
-        delay(5000);
+        flag = syncRTC(com, rtc);
     }
 
-    logMessage(SF("RTC sync success"));
+    #ifdef DEBUG
+        Serial.println(F("RTC sync success"));
+    #endif
 
-    delay(2000);
+    if (sos.checkMissingData())
+    {
+        while(1)
+        {
+            uint8_t flag = sos.sendData();
+
+            if(flag == REQUEST_SUCCESS)
+            {
+                logMessage(SF("Uploaded missing data"));
+                break;
+            }
+            delay(10000);
+        }
+    }
+    else
+    {
+        String tmpDate = getFormattedDate(rtc.now());
+        String tmp = SF(PROCEDURE_ID) + SF(";") + tmpDate;
+
+        dstemp.requestTemperatures();
+
+        lightMeter.configure(BH1750_ONE_TIME_HIGH_RES_MODE);
+        delay(150);
+
+        uint16_t lux = lightMeter.readLightLevel();
+        float pressure = bme.readPressure() / 100.0F;
+        float humidity = bme.readHumidity();
+        float temp = dstemp.getTempCByIndex(0);
+        uint8_t soil = readSoil();
+        int winddir = get_wind_direction();
+        float windspeedms = get_wind_speed();
+        float intTemp = dht.readTemperature();
+
+        tmp += SF(",") + String(intTemp) + SF(":800");
+        tmp += SF(",") + String(soil) + SF(":800");
+        tmp += SF(",") + String(lux) + SF(":800");
+        tmp += SF(",") + String(pressure) + SF(":800");
+        tmp += SF(",") + String(humidity) + SF(":800");
+        tmp += SF(",") + String(temp) + SF(":800");
+        tmp += SF(",") + String(rain) + SF(":800");
+        tmp += SF(",") + String(winddir) + SF(":800");
+        tmp += SF(",") + String(windspeedms) + SF(":800");
+
+        #ifdef DEBUG
+            Serial.print(F("Test string: "));
+            Serial.println(tmp);
+        #endif
+
+        alert(7);
+
+        while(1)
+        {
+            uint8_t code = com.executePost(SERVER, URI, tmp);
+
+            #ifdef DEBUG
+                Serial.print(F("Error code: "));
+                Serial.println(code);
+            #endif
+
+            if(code == 0)
+            {
+                break;
+            }
+            delay(5000);
+        }
+    }
+
+    logMessage(SF("start loop"));
 
     DateTime now = rtc.now();
 
@@ -373,105 +482,60 @@ void setup() {
 
     lastDay = now.day();
     lastMisMin = min;
-    lastLogMin = min;
+    lastLogDate = now;
 
     lastSendDate = now;
+    lastSamplingDate = now;
 
-    delay(1000);
-
-    // try communication
-    // generate "random" string
-    String tmpDate = getFormattedDate(rtc.now());
-    String tmp = SF(PROCEDURE_ID) + SF(";") + tmpDate;
-    tmp += SF(",21.00:800,0.00:800,6.00:800,1000.0:800,22.98:800,21.31:800,0.00:800,-1.00:800,0.00:800");
-
-
-    #ifdef DEBUG
-        Serial.print(F("Test string: "));
-        Serial.println(tmp);
+    #ifdef DEBUG_RAM
+        Serial.print(F("Free RAM: "));
+        Serial.println(freeRam());
     #endif
 
-    alert(7);
-
-    while(1)
-    {
-        uint8_t code = com.executePost(SERVER, URI, tmp);
-
-        #ifdef DEBUG
-            Serial.print(F("Error code: "));
-            Serial.println(code);
-        #endif
-
-        if(code == 0)
-        {
-            break;
-        }
-        delay(5000);
-    }
-
-
-    #ifdef DEBUG
-        Serial.println(F("Setup ready... starting loop"));
-    #endif
-
-    logMessage(SF("start loop"));
+    delay(2000);
 
     digitalWrite(LED_BUILTIN, LOW);
-}
 
-/**
- * Read soil humidity (0-100)
- *
- * @return short soil humidity
- */
-short readSoil()
-{
-    short value = analogRead(SOIL_A_PIN);
-    short measure = ((1023.0 - value) / 1023.0) * 100.0;
-    return measure;
 }
 
 /**
  *
- * Read mesure from sensrs
+ * Read mesure from sensors and check data quality
  *
  */
 void getWeatherMeasure()
 {
     dstemp.requestTemperatures();
 
+    float intTemp = dht.readTemperature();
+    delay(150);
+
     lightMeter.configure(BH1750_ONE_TIME_HIGH_RES_MODE);
     delay(150);
 
     uint16_t lux = lightMeter.readLightLevel();
-    // istsos max value = 9999
-    if (lux >= 10000)
-    {
-        lux = 9999;
-    }
-
     float pressure = bme.readPressure() / 100.0F;
     float humidity = bme.readHumidity();
     float temp = dstemp.getTempCByIndex(0);
     uint8_t soil = readSoil();
 
-    int winddir = get_wind_direction();
-    float windspeedms = get_wind_speed();
-
-    float intTemp = dht.readTemperature();
-
     rain += lastrain;
-
     lastrain = 0;
 
-    medianTemp.add(temp);
-    medianHum.add(humidity);
-    medianPres.add(pressure);
-    medianSoil.add(soil);
-    medianLux.add(lux);
-    medianIntTemp.add(intTemp);
-    medianWinDir.add(winddir);
-    medianWinSp.add(windspeedms);
+
+    measTemp.addMeasure(temp);
+    measHum.addMeasure(humidity);
+    measPres.addMeasure(pressure);
+    measLux.addMeasure(lux);
+    measSoil.addMeasure(soil);
+    measIntTemp.addMeasure(intTemp);
+
+    #ifdef WIND
+        int winddir = get_wind_direction();
+        float windspeedms = get_wind_speed();
+        medianWinDir.add(winddir);
+        medianWinSp.add(windspeedms);
+    #endif
 }
 
 /**
@@ -481,26 +545,30 @@ void getWeatherMeasure()
  */
 String formatWeatherMeasure(const DateTime& now) {
 
+    // get current date
     String message = getFormattedDate(now);
 
-    message += "," + String(medianIntTemp.getMedian());
-    message += "," + String(medianSoil.getMedian());
-    message += "," + String(medianLux.getMedian());
-    message += "," + String(medianPres.getMedian());
-    message += "," + String(medianHum.getMedian());
-    message += "," + String(medianTemp.getMedian());
-    message += "," + String(rain);
-    message += "," + String(medianWinDir.getMedian());
-    message += "," + String(medianWinSp.getMedian());
+    // concat measures
+    message += "," + measIntTemp.getAverageQI();
+    message += "," + measSoil.getAverageQI();
+    message += "," + measLux.getAverageQI();
+    message += "," + measPres.getAverageQI();
+    message += "," + measHum.getAverageQI();
+    message += "," + measTemp.getAverageQI();
+    message += "," + String(rain) + SF(":100");
+    #ifdef WIND
+        message += "," + String(SampMedianWinDir.getAverage()) + SF(":100");
+        message += "," + String(SampMedianWinSp.getAverage()) + SF(":100");
+    #else
+        message += "," + SF("-999:400");
+        message += "," + SF("-999:400");
+    #endif
+    // message += "," + measTemp.getAverageQI();
 
-    medianTemp.clear();
-    medianHum.clear();
-    medianPres.clear();
-    medianSoil.clear();
-    medianLux.clear();
-    medianIntTemp.clear();
-    medianWinDir.clear();
-    medianWinSp.clear();
+    #ifdef WIND
+        SampMedianWinDir.clear();
+        SampMedianWinSp.clear();
+    #endif
 
     rain = 0;
 
@@ -508,48 +576,27 @@ String formatWeatherMeasure(const DateTime& now) {
 
 }
 
-uint8_t count = 0;
-bool sendStatus = true;
 /**
-    Send data to the server
+ * Every minute
 */
-void sendData()
+void medianLastMin()
 {
-    // String date = getFormattedDate(now);
-    logMessage(SF("Sending data..."));
 
-    uint8_t res = sos.sendData();
+    measTemp.calcLastMin();
+    measHum.calcLastMin();
+    measPres.calcLastMin();
+    measLux.calcLastMin();
+    measSoil.calcLastMin();
+    measIntTemp.calcLastMin();
+    // measIntHum.calcLastMin();
 
-    #ifdef DEBUG
-        Serial.print(F("Error code: "));
-        Serial.println(res);
+    #ifdef WIND
+        SampMedianWinDir.add(medianWinDir.getAverage());
+        SampMedianWinSp.add(medianWinSp.getAverage());
+
+        medianWinSp.clear();
+        medianWinDir.clear();
     #endif
-
-    if (res == 0)
-    {
-        logMessage(SF("data send"));
-        #ifdef DEBUG
-            Serial.println(F("data send"));
-        #endif
-        sendStatus = true;
-        count = 0;
-        digitalWrite(LED_BUILTIN, LOW);
-    }
-    else
-    {
-        count++;
-        sendStatus = false;
-        alert(2);
-        if (count >= 3)
-        {
-            logMessage(SF("problem sending data"));
-            #ifdef DEBUG
-                Serial.println(F("problem sending data"));
-            #endif
-            sendStatus = true;
-            count = 0;
-        }
-    }
 }
 
 void loop() {
@@ -558,49 +605,80 @@ void loop() {
     DateTime now = rtc.now();
     uint8_t min = now.minute();
 
-    // check if it's time to read measures
+    if(calcSamplingTime(now, lastSamplingDate, 10))
+    {
+        getWeatherMeasure();
+        lastSamplingDate = now;
+    }
+
+
     if(calcInterval(min, lastMisMin, 1) && min < 60 && now.year() < 2060)
     {
-
         lastMisMin = min;
+        medianLastMin();
+        #ifdef DEBUG_RAM
+            Serial.print(F("Free RAM after minute: "));
+            Serial.println(freeRam());
+        #endif
+    }
 
-        getWeatherMeasure();
+    if(calcLogInterval(now, lastLogDate, SAMPLING_TIME_MIN) && min < 60 && now.year() < 2060)
+    {
+        #ifdef DEBUG
+            Serial.println(F("time to log measures"));
+        #endif
 
-        // check if it's time to log data
-        if(calcInterval(min, lastLogMin, SAMPLING_TIME_MIN) && min < 60)
-        {
-            String message = formatWeatherMeasure(now);
+        String message = formatWeatherMeasure(now);
+        #ifdef DEBUG
             Serial.println(message);
-            sos.logData(message);
-            lastLogMin = now.minute();
-        }
+        #endif
+        lastLogDate = now;
 
+        // temporary removed
+        sos.logData(message);
 
-        // check if it's time to send data
+        #ifdef DEBUG_RAM
+            Serial.print(F("Free RAM after sd log: "));
+            Serial.println(freeRam());
+        #endif
+
         if(calcSendTime(now, lastSendDate, SENDING_TIME_MIN) || !sendStatus)
         {
             #ifdef DEBUG
-                Serial.println(F("Time to send data"));
+                Serial.print(F(" Sending data: "));
             #endif
-            sendData();
+            uint8_t res = sendData(sos);
+            // sendStatus = true;
 
-            if (count == 0)
+            #ifdef DEBUG
+                Serial.println(res);
+            #endif
+
+            lastSendDate = now;
+
+            if(sendStatus && res == 0)
             {
-                lastSendDate = now;
+                logMessage(SF("Sending data success"));
             }
-            delay(1000);
+            else if(sendStatus && res != 0)
+            {
+                String logMsg = SF("Sending data failure: ") + String(res);
+                logMessage(logMsg);
+            }
         }
 
-        // sync RTC every day
         uint8_t dayNow = now.day();
-        // dayNow < 32 avoid rtc bad read
-        if( dayNow != lastDay && sendStatus && dayNow < 32)
+        // Sync the rtc once a week
+        if(now.dayOfTheWeek() == 0 && dayNow != lastDay && sendStatus)
         {
             bool flag = syncRTC(com, rtc);
 
             if(!flag)
             {
-                Serial.println(F("Problem sync RTC..."));
+                #ifdef DEBUG
+                    Serial.println(F("Problem sync RTC..."));
+                #endif
+                logMessage(SF("Problem RTC sync"));
             }
             else
             {
@@ -613,10 +691,12 @@ void loop() {
                 #ifdef DEBUG
                     Serial.println(F("RTC sync ok"));
                 #endif
+                logMessage(SF("RTC sync ok"));
             }
         }
+
     }
     // back to sleep :)
-    delay(8000);
+    delay(4000);
 
 }

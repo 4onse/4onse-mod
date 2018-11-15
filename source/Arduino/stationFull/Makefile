@@ -5,16 +5,16 @@ ARDUINO_DIR   	= /opt/arduino-1.8.4
 ARDUINO_LIBS  	= Wire SPI OneWire \
 				  Adafruit_BME280 Adafruit_Sensor \
 				  istsos BH1750 \
-				  DallasTemperature DHT RTClib RunningMedian
+				  DallasTemperature DHT RTClib RunningMedian measures
 
-SERVER 			= '"geoservice.ist.supsi.ch"'
+SERVER 			= '"xxx"'
 URI 			= '"/4onse/wa/istsos/services/sos/operations/fastinsert"'
-PROCEDURE_ID 	= '"175378da9a0511e79e2008002745029a"'
-BASIC_AUTH		= '"YWRtaW46QlYzWGp2clA="'
+PROCEDURE_ID 	= '"xxx"'  # '"1ee64d2ae56411e7a93608002745029a"'
+BASIC_AUTH		= '"xxx"'
 
-APN				= '"internet"'
-APNUSER			= '""'
-PASS			= '""'
+APN				= '"internet"'  # '"gprs.swisscom.ch"'
+APNUSER			= '"gprs"'
+PASS			= '"gprs"'
 SIM_PIN			= '""'
 
 

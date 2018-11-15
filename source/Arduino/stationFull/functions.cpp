@@ -1,25 +1,6 @@
-// =========================================================================
-//
-// Copyright (C) 2012-2017, Istituto Scienze della Terra
-//
-// This program is free software; you can redistribute it and/or modify it
-// under the terms of the GNU General Public License as published by the
-// Free Software Foundation; either version 2 of the License, or (at your
-// option) any later version.
-//
-// This program is distributed in the hope that it will be useful, but
-// WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-// General Public License for more details.
-//
-// You should have received a copy of the GNU General Public License along
-// with this program; if not, write to the Free Software Foundation, Inc.,
-// 51 Franklin Street, Fifth Floor, Boston, MA  02110-1301, USA.
-//
-// =========================================================================
 #include "functions.h"
 
-String getFormattedDate(DateTime dt)
+String getFormattedDate(const DateTime dt)
 {
     char sz[30];
     sprintf(sz, "%04d-%02d-%02dT%02d:%02d:%02d", dt.year(), dt.month(), dt.day(), dt.hour(), dt.minute(), dt.second());
@@ -27,16 +8,12 @@ String getFormattedDate(DateTime dt)
     return String(sz) + String("+0000");
 }
 
-
-/**
- * Syncronize RTC
- */
-bool syncRTC(ICom& com, RTC_DS3231 rtc)
+bool syncRTC(ICom& com, const RTC_DS3231 rtc)
 {
-    Serial.print(F("Sincronize RTC..."));
+    // Serial.print(F("Sincronize RTC..."));
 
     // this code is only for testing
-    // rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 9, (uint8_t) 13, (uint8_t) 12, (uint8_t) 00, (uint8_t) 00));
+    // rtc.adjust(DateTime((uint16_t) 2017, (uint8_t) 12, (uint8_t) 12, (uint8_t) 8, (uint8_t) 49, (uint8_t) 00));
     // return true;
 
     uint8_t tmp = 0;
@@ -57,27 +34,40 @@ bool syncRTC(ICom& com, RTC_DS3231 rtc)
         return false;
     }
 
-    uint16_t year = (uint16_t) result[0];
-    uint8_t month = (uint8_t) result[1];
-    uint8_t day = (uint8_t) result[2];
+    rtc.adjust(DateTime((uint16_t) result[0], (uint8_t) result[1], (uint8_t) result[2], (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
+    // Serial.println(F("done"));
+    delete[] result;
 
-    rtc.adjust(DateTime(year, month, day, (uint8_t) result[3], (uint8_t) result[4], (uint8_t) result[5]));
-    delay(2000);
-
-    // check that the rtc has the correct date
-    DateTime now = rtc.now();
-
-    if(now.year() == year && now.month() == month && now.day() == day)
-    {
-        Serial.println(F("done"));
-        return true;
-    }
-    return false;
+    return true;
 }
 
-bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
+uint8_t sendData(Istsos& sos)
 {
+    uint8_t res = sos.sendData();
 
+    if (res == 0)
+    {
+        sendStatus = true;
+        countSend = 0;
+        digitalWrite(LED_BUILTIN, LOW);
+        return res;
+    }
+
+    alert(2);
+    countSend++;
+    sendStatus = false;
+    if (countSend >= 3)
+    {
+        sendStatus = true;
+        countSend = 0;
+        return res;
+    }
+
+    return res;
+}
+
+bool calcInterval(uint8_t current, uint8_t last, uint32_t interval)
+{
     uint8_t tmp = 0;
 
     if (current >= last)
@@ -98,10 +88,31 @@ bool calcInterval(uint8_t current, uint8_t last, unsigned int interval)
 
 }
 
+bool calcLogInterval(const DateTime& current, const DateTime& last, uint8_t interval)
+{
+
+    if ((current.minute() % 5) != 0)
+    {
+        return false;
+    }
+
+    uint32_t nowSec = current.secondstime() - current.second();
+    uint32_t lastSec = last.secondstime() - last.second();
+
+    uint32_t diff = nowSec - lastSec;
+
+    if( diff >= (interval * 60))
+    {
+        return true;
+    }
+
+    return false;
+}
+
 bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t sendingMinutes)
 {
-    uint32_t nowSec = now.secondstime();
-    uint32_t lastSec = lastSend.secondstime();
+    uint32_t nowSec = now.secondstime() - now.second();
+    uint32_t lastSec = lastSend.secondstime() - lastSend.second();
     uint32_t difference = nowSec - lastSec;
     uint32_t sendSec = sendingMinutes * 60;
 
@@ -111,7 +122,27 @@ bool calcSendTime(const DateTime& now, const DateTime& lastSend, const uint32_t 
     }
 
     return false;
+}
 
+bool calcSamplingTime(const DateTime& now, const DateTime& last, const uint8_t interval)
+{
+
+    uint32_t nowSec = now.secondstime();
+    uint32_t lastSec = last.secondstime();
+
+    uint32_t diff = nowSec - lastSec;
+
+    if (diff >= (uint32_t)(interval - 1))
+    {
+        return true;
+    }
+    return false;
+}
+
+float getLastValue(RunningMedian& median)
+{
+    uint8_t size = median.getCount();
+    return median.getElement(size - 1);
 }
 
 void alert(uint8_t blink)
