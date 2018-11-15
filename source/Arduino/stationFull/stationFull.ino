@@ -55,7 +55,7 @@
 /*****************************************
  * Configure params
  ****************************************/
-#define SERVER "geoservice.ist.supsi.ch"
+#define SERVER "xxx"
 #define URI "/4onse/wa/istsos/services/sos/operations/fastinsert"
 #define PROCEDURE_ID "xxx"
 #define BASIC_AUTH "xxx"
