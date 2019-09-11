@@ -44,25 +44,6 @@ bool syncRTC(ICom& com, const RTC_DS3231 rtc)
 uint8_t sendData(Istsos& sos)
 {
     uint8_t res = sos.sendData();
-
-    if (res == 0)
-    {
-        sendStatus = true;
-        countSend = 0;
-        digitalWrite(LED_BUILTIN, LOW);
-        return res;
-    }
-
-    alert(2);
-    countSend++;
-    sendStatus = false;
-    if (countSend >= 3)
-    {
-        sendStatus = true;
-        countSend = 0;
-        return res;
-    }
-
     return res;
 }
 
@@ -147,13 +128,32 @@ float getLastValue(RunningMedian& median)
 
 void alert(uint8_t blink)
 {
-    for(uint8_t i = 0; i < blink; i++)
+    for(uint8_t u = 0; u < 3; u++)
     {
-        digitalWrite(LED_BUILTIN, LOW);
-        delay(250);
-        digitalWrite(LED_BUILTIN, HIGH);
-        delay(250);
-    }
+        for(uint8_t i = 0; i < blink; i++)
+        {
+            digitalWrite(LED_BUILTIN, HIGH);
+            delay(250);
+            digitalWrite(LED_BUILTIN, LOW);
+            delay(250);
+        }
 
-    delay(2000);
+        delay(2000);
+    }
+}
+
+void alert_long(uint8_t blink)
+{
+    for(uint8_t u = 0; u < 3; u++)
+    {
+        for(uint8_t i = 0; i < blink; i++)
+        {
+            digitalWrite(LED_BUILTIN, HIGH);
+            delay(850);
+            digitalWrite(LED_BUILTIN, LOW);
+            delay(150);
+        }
+
+        delay(2000);
+    }
 }

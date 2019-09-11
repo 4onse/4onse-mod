@@ -118,4 +118,11 @@ float getLastValue(RunningMedian& median);
 */
 void alert(uint8_t blink);
 
+/**
+*    Function to blink longer the buildin led a defined amount of time
+*
+*   @param blink    Number of time to blink
+*/
+void alert_long(uint8_t blink);
+
 #endif

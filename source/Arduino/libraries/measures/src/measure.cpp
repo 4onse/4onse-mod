@@ -38,7 +38,11 @@ Measure::Measure(const uint8_t length, const uint8_t lengthBig, const float minL
 void Measure::addMeasure(const float measure)
 {
     uint16_t flag = 0;
-    if(measure >= this->minLimit && measure <= this->maxLimit)
+    if (measure==-999.99)
+    {
+        flag = MEASURE_NO_DATA;
+    }
+    else if(measure >= this->minLimit && measure <= this->maxLimit)
     {
         flag = this->checkMinuteVar(this->minuteValue, this->minuteFlag, measure, this->variance);
     }
@@ -69,7 +73,7 @@ void Measure::addMeasure(const float measure)
 
 uint16_t Measure::checkMinuteVar(RunningMedian *median, RunningMedian *flag, const float value, const float variance)
 {
-    if (isnan(value))
+    if (isnan(value) || value==-999.99)
     {
         return MEASURE_NO_DATA;
     }
@@ -153,7 +157,12 @@ float* Measure::calcAverageQI(RunningMedian *meas, RunningMedian *flag)
         result[1] = MEASURE_NOT_VALID;
     }
 
-    result[0] = tmp->getAverage();
+    if (tmpLength==0) {
+        result[0] = -999.99;
+        result[1] = MEASURE_NO_DATA;
+    } else {
+        result[0] = tmp->getAverage();
+    }
 
     delete tmp;
 
@@ -198,6 +207,7 @@ void Measure::calcLastMin()
 
 String Measure::getAverageQI()
 {
+    String tmp;
     float* result = this->calcAverageQI(this->samplingValue, this->samplingFlag);
 
     this->samplingValue->clear();
@@ -205,10 +215,14 @@ String Measure::getAverageQI()
 
     if(isnan(result[0]))
     {
-        result[0] = 0;
+        result[0] = -999.99;
     }
-
-    String tmp = String(result[0]) + ":" + String((uint16_t)result[1]);
+    if (result[1]==100)
+    {
+        tmp = String(result[0]);
+    } else {
+        tmp = String(result[0]) + ":" + String((uint16_t)result[1]);
+    }
 
     delete[] result;
 
