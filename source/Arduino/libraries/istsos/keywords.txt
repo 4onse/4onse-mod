@@ -1,0 +1,44 @@
+#######################################
+# Syntax Coloring Map
+#######################################
+
+#######################################
+# Class (KEYWORD1)
+#######################################
+
+IstsosGprs	KEYWORD1
+IstsosWifi	KEYWORD1
+SdIstsos	KEYWORD1
+Istsos      KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+begin               KEYWORD2
+executePost         KEYWORD2
+ntpUdate            KEYWORD2
+
+begin               KEYWORD2
+createFile          KEYWORD2
+openFile            KEYWORD2
+writeLine           KEYWORD2
+readFile            KEYWORD2
+removeFile          KEYWORD2
+getFileSize	        KEYWORD2
+ls                  KEYWORD2
+createDirectory	    KEYWORD2
+cd                  KEYWORD2
+copyToLog           KEYWORD2
+getFirstFileName    KEYWORD2
+
+begin               KEYWORD2
+sendData            KEYWORD2
+sendDataTest        KEYWORD2
+logData             KEYWORD2
+logging             KEYWORD2
+ntpUpdate           KEYWORD2
+
+######################################
+# Constants (LITERAL1)
+#######################################
+# KEY_NONE	LITERAL1
